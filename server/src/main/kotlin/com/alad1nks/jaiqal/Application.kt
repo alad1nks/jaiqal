@@ -1,20 +1,35 @@
 package com.alad1nks.jaiqal
 
-import io.ktor.server.application.*
-import io.ktor.server.engine.*
-import io.ktor.server.netty.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import com.alad1nks.jaiqal.auth.DeviceTokenAuthenticator
+import com.alad1nks.jaiqal.config.AppConfig
+import com.alad1nks.jaiqal.infrastructure.database.DatabaseReadiness
+import com.alad1nks.jaiqal.infrastructure.database.JdbcDatabaseReadiness
+import com.alad1nks.jaiqal.plugins.configureAuthentication
+import com.alad1nks.jaiqal.plugins.configureHttp
+import com.alad1nks.jaiqal.plugins.configureMonitoring
+import com.alad1nks.jaiqal.plugins.configureRouting
+import io.ktor.server.application.Application
+import io.ktor.server.engine.embeddedServer
+import io.ktor.server.netty.Netty
 
 fun main() {
-    embeddedServer(Netty, port = 8080, host = "0.0.0.0", module = Application::module)
-        .start(wait = true)
+    val config = AppConfig.fromEnvironment()
+    embeddedServer(
+        factory = Netty,
+        port = config.httpPort,
+        host = "0.0.0.0",
+    ) {
+        configureApplication(config)
+    }.start(wait = true)
 }
 
-fun Application.module() {
-    routing {
-        get("/") {
-            call.respondText(sayHello("Ktor"))
-        }
-    }
+fun Application.configureApplication(
+    config: AppConfig,
+    databaseReadiness: DatabaseReadiness = JdbcDatabaseReadiness(config.database),
+    deviceTokenAuthenticator: DeviceTokenAuthenticator = DeviceTokenAuthenticator.rejectAll(),
+) {
+    configureMonitoring()
+    configureHttp(config)
+    configureAuthentication(config.jwt, deviceTokenAuthenticator)
+    configureRouting(databaseReadiness)
 }

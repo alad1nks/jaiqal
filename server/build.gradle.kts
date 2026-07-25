@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.kotlinJvm)
+    alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.ktor)
 }
 
@@ -10,10 +11,20 @@ application {
 }
 
 dependencies {
-    api(project(":core"))
+    implementation(project(":core:api-contract"))
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.logback)
+    implementation(libs.postgresql)
+    implementation(libs.ktor.serializationKotlinxJson)
+    implementation(libs.ktor.serverAuth)
+    implementation(libs.ktor.serverAuthJwt)
+    implementation(libs.ktor.serverCallId)
+    implementation(libs.ktor.serverCallLogging)
+    implementation(libs.ktor.serverContentNegotiation)
+    implementation(libs.ktor.serverCors)
     implementation(libs.ktor.serverCore)
     implementation(libs.ktor.serverNetty)
+    implementation(libs.ktor.serverStatusPages)
     testImplementation(libs.ktor.serverTestHost)
     testImplementation(libs.kotlin.testJunit)
 }

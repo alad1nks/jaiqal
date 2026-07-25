@@ -58,6 +58,7 @@ kotlin {
         }
         commonMain.dependencies {
             api(project(":core"))
+            api(project(":core:api-contract"))
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
