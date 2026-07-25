@@ -32,6 +32,27 @@ Use the run configurations provided by the run widget in your IDE's toolbar. You
   - JS target (slower, supports older browsers): `./gradlew :app:webApp:jsBrowserDevelopmentRun`
 - iOS app: open the [/app/iosApp](./app/iosApp) directory in Xcode and run it from there.
 
+### Server configuration
+
+The server reads configuration from environment variables. `HTTP_PORT` defaults to
+`8080`; all database and JWT values are required. `ALLOWED_ORIGINS` is a
+comma-separated list of complete origins and can be empty for server-to-server use.
+
+```shell
+HTTP_PORT=8080
+DATABASE_URL=jdbc:postgresql://localhost:5432/jaiqal
+DATABASE_USER=jaiqal
+DATABASE_PASSWORD=replace-with-local-password
+JWT_ISSUER=https://auth.example.com
+JWT_AUDIENCE=jaiqal-app
+JWT_SECRET=replace-with-a-long-random-secret
+ALLOWED_ORIGINS=http://localhost:8081,http://localhost:3000
+```
+
+With the variables exported, start the server with `./gradlew :server:run`.
+The liveness endpoint is `/health/live`; `/health/ready` additionally checks that
+PostgreSQL accepts a `SELECT 1` query.
+
 ---
 
 Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html),
