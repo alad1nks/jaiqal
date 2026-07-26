@@ -1,85 +1,130 @@
-# Жайқал — KMP frontend implementation task
+# Жайқал — финальное задание на KMP-фронтенд
 
-## Goal
+## Цель
 
-Implement the first production-ready Kotlin Multiplatform frontend for **Жайқал**, an Android and iOS application that monitors house plants through ESP32 devices.
+Создать с нуля production-ready Kotlin Multiplatform клиент проекта **Жайқал** для Android и iOS.
 
-The application must allow a user to:
+Сейчас в репозитории существует только готовый Ktor-бэкенд с PostgreSQL. Пользовательская авторизация бэкенда переводится на Firebase Authentication. Клиентского кода пока нет.
 
-- register and sign in;
-- create and manage plants;
-- claim an ESP32 device;
-- view the latest soil moisture, air temperature, air humidity, and light readings;
-- view measurement history;
-- receive realtime updates;
-- configure and review alerts;
-- continue seeing previously loaded data while offline.
+Приложение должно позволять пользователю:
 
-Use **Compose Multiplatform with shared UI and shared presentation/domain/data logic**. The backend is a separate Ktor application in the same repository.
+- зарегистрироваться и войти через Firebase Authentication;
+- восстановить сессию после перезапуска;
+- просматривать и редактировать профиль;
+- создавать и редактировать растения;
+- привязывать ESP32 по одноразовому claim-коду;
+- просматривать состояние устройства;
+- калибровать датчик влажности почвы;
+- видеть последние измерения влажности почвы, температуры и влажности воздуха, освещённости и других показателей, которые реально возвращает API;
+- просматривать историю измерений на графиках;
+- получать обновления во время работы приложения;
+- просматривать предупреждения и менять правила предупреждений;
+- получать push-уведомления, если соответствующий backend endpoint уже существует;
+- просматривать ранее загруженные данные без интернета.
 
----
-
-## Working rules
-
-1. Inspect the repository before modifying anything:
-   - read `README.md`, `AGENTS.md`, `settings.gradle.kts`, version catalogs, convention plugins, and existing app modules;
-   - inspect existing architecture, navigation, networking, localization, DI, theming, and testing conventions;
-   - reuse equivalent modules and abstractions instead of creating duplicates;
-   - preserve unrelated user changes.
-2. Create a short implementation plan before coding.
-3. Complete the steps below in order.
-4. After every step:
-   - compile all affected targets;
-   - run relevant tests;
-   - fix failures before continuing.
-5. Use versions from the existing version catalog. If a dependency is missing, select a current stable version compatible with the repository's Kotlin, Compose Multiplatform, and Ktor versions.
-6. Do not put backend code, database credentials, device secrets, or server-only models in the frontend.
-7. Do not create generic abstractions until at least two concrete consumers need them.
-8. Do not create a universal `BaseViewModel`, `BaseRepository`, or generic MVI framework.
-9. Keep Android and iOS behavior consistent while respecting platform-specific secure storage and lifecycle behavior.
-10. If an API required by this task is not implemented yet, define the interface and use a fake only in previews/tests. Do not ship fake production data.
+Использовать **Compose Multiplatform с общей UI, presentation, domain и data логикой**.
 
 ---
 
-## Target architecture
+## Важный контекст авторизации
 
-Use a pragmatic layered architecture:
+Использовать следующую схему:
+
+```text
+Android/iOS
+    -> Firebase Authentication
+    -> Firebase ID Token
+    -> Authorization: Bearer <Firebase ID Token>
+    -> Ktor API
+    -> внутренний users.id UUID
+```
+
+Клиент:
+
+- не регистрирует пользователя через старый backend endpoint;
+- не отправляет пароль на Ktor;
+- не получает собственный JWT от бэкенда;
+- не хранит собственный access token;
+- не хранит refresh token бэкенда;
+- не реализует самостоятельное обновление JWT;
+- не использует Firebase UID как идентификатор бизнес-сущностей;
+- не взаимодействует с Device Token ESP32.
+
+Firebase SDK отвечает за пользовательскую сессию и обновление Firebase ID Token. Ktor получает только актуальный ID Token.
+
+ESP32 продолжает авторизоваться на сервере через собственный Device Token. Этот токен никогда не должен попадать в мобильное приложение.
+
+---
+
+## Правила работы
+
+1. До внесения изменений изучи:
+   - `README.md`;
+   - `AGENTS.md`;
+   - `settings.gradle.kts`;
+   - version catalog;
+   - convention plugins;
+   - существующие backend-модули;
+   - `:core:api-contract`, если он существует;
+   - актуальные маршруты, DTO и документацию API;
+   - текущую ветку миграции бэкенда на Firebase Auth.
+2. Не переписывай и не реорганизуй backend без необходимости.
+3. Не восстанавливай старые `/register`, `/login`, `/refresh` и `/logout` на Ktor.
+4. Клиент должен соответствовать фактическому API. Не придумывай endpoint, если в бэкенде уже есть другой эквивалент.
+5. Если нужного endpoint нет:
+   - зафиксируй это как backend dependency;
+   - создай клиентский интерфейс;
+   - используй fake только в preview и тестах;
+   - не поставляй fake-данные в production.
+6. Сначала составь короткий план и выполняй шаги по порядку.
+7. После каждого шага собирай затронутые Android/iOS targets и запускай подходящие тесты.
+8. Используй версии из version catalog. Новые версии должны быть совместимы с текущими Kotlin, Compose Multiplatform, Ktor и Gradle.
+9. Не создавай универсальные `BaseViewModel`, `BaseRepository`, generic MVI-фреймворк или собственную навигацию.
+10. Не создавай Gradle-модуль на каждую маленькую feature. На старте предпочитай feature packages.
+11. Не добавляй секреты, service account JSON, Firebase ID Token, FCM token и реальные production URL в Git или логи.
+12. Не выполняй блокирующий I/O на main thread.
+13. Сохраняй поведение Android и iOS одинаковым, кроме действительно платформенных возможностей.
+
+---
+
+# Целевая архитектура
+
+Используй прагматичную layered architecture:
 
 ```text
 Compose Screen
-    ↓ actions
-Common ViewModel
-    ↓
-Repository interface
-    ↓
-Repository implementation
-    ├── Remote data source → Ktor Client → Backend API
-    └── Local data source  → SQLDelight → SQLite
+    -> Common ViewModel
+    -> Repository interface
+    -> Repository implementation
+        -> Remote data source -> Ktor Client -> Ktor backend
+        -> Local data source  -> SQLDelight -> SQLite
 ```
 
-Data returned to UI flows in the opposite direction:
+Поток данных к UI:
 
 ```text
-SQLite / Network
-    → Repository Flow
-    → ViewModel StateFlow
-    → Compose UI
+Network / SQLite
+    -> Repository Flow
+    -> ViewModel StateFlow
+    -> Compose UI
 ```
 
-The server is the source of truth. SQLite is an offline cache and must never silently override newer server data.
+Сервер является source of truth. SQLite используется как offline cache и не должен незаметно перезаписывать более свежие серверные данные.
 
-### Recommended Gradle structure
+Firebase Authentication является source of truth только для состояния пользовательской сессии. Firebase не хранит растения, устройства, телеметрию и предупреждения.
 
-Reuse equivalent existing modules. Otherwise prefer:
+## Рекомендуемая структура
+
+Используй существующие эквиваленты, если они уже есть. Иначе:
 
 ```text
-:core:api-contract       # Shared with the Ktor server
-:app:composeApp          # Shared KMP UI, domain, data, and presentation
-:app:androidApp          # Android entry point if separate
-iosApp/                  # Xcode iOS entry point
+:core:api-contract       # Общие сериализуемые API DTO
+:app:composeApp          # Общий KMP-код и Compose UI
+:app:androidApp          # Android entry point, если нужен отдельно
+iosApp/                  # Xcode iOS application
 ```
 
-Do not immediately create a Gradle module for every feature. Inside `composeApp`, organize code by feature and layer:
+Внутри `composeApp`:
 
 ```text
 composeApp/src/commonMain/kotlin/<base-package>/
@@ -92,20 +137,21 @@ composeApp/src/commonMain/kotlin/<base-package>/
 │   ├── designsystem/
 │   ├── network/
 │   ├── database/
-│   ├── session/
-│   └── lifecycle/
-├── auth/
-│   ├── data/
-│   ├── domain/
-│   └── presentation/
-├── plants/
-├── plantdetails/
-├── devices/
-├── alerts/
-└── settings/
+│   ├── auth/
+│   ├── lifecycle/
+│   └── connectivity/
+├── feature/
+│   ├── auth/
+│   ├── plants/
+│   ├── plantdetails/
+│   ├── devices/
+│   ├── calibration/
+│   ├── alerts/
+│   └── settings/
+└── di/
 ```
 
-Each feature may contain:
+Каждая feature при необходимости может содержать:
 
 ```text
 data/
@@ -113,727 +159,781 @@ domain/
 presentation/
 ```
 
-Only add a domain use-case class when it contains real business logic or combines multiple repositories. Simple repository calls can be made directly from a ViewModel.
+Use case создавай только тогда, когда в нём есть бизнес-логика или координация нескольких repositories. Простую операцию repository можно вызывать из ViewModel напрямую.
 
----
+## Технические решения
 
-## Technical choices
-
-Use existing equivalents when present. Otherwise use:
+Используй существующие эквиваленты или:
 
 - Compose Multiplatform;
-- AndroidX Lifecycle ViewModel in `commonMain`;
-- type-safe AndroidX Navigation Compose for Multiplatform;
-- Kotlin coroutines and `StateFlow`;
+- AndroidX Lifecycle ViewModel в `commonMain`;
+- type-safe Navigation Compose for Multiplatform;
+- Kotlin coroutines, `Flow` и `StateFlow`;
 - Ktor Client;
 - kotlinx.serialization;
 - kotlinx.datetime;
-- SQLDelight for the offline cache;
-- Koin with the Kotlin DSL for dependency injection;
-- Coil 3 for remote images if plant images are implemented;
-- Compose Multiplatform resources for strings and images.
+- SQLDelight;
+- Koin с Kotlin DSL;
+- Compose Multiplatform Resources;
+- официальный Firebase Android SDK;
+- официальный Firebase Apple SDK;
+- Coil 3 только если API действительно возвращает изображения.
 
 Ktor engines:
 
-- Android: OkHttp;
-- iOS: Darwin.
+- Android — OkHttp;
+- iOS — Darwin.
 
-Do not expose API DTOs directly to composables. Use explicit mappings:
+Не передавай API DTO напрямую в composables:
 
 ```text
-API DTO ↔ domain model ↔ local database model
+API DTO <-> domain model <-> local database model
 ```
 
 ---
 
-# Step 1 — Application shell, design system, and navigation
+# Шаг 1. Создать KMP-приложение и базовую инфраструктуру
 
-## Tasks
+## Задачи
 
-1. Ensure Android and iOS entry points both launch the same shared `App()` composable.
-2. Set up dependency injection from the platform entry points.
-3. Implement an application-level state holder responsible only for:
-   - current authenticated/unauthenticated state;
-   - top-level navigation;
-   - app-wide snackbar messages;
-   - current connectivity state.
-4. Create type-safe navigation destinations. Do not use hand-built string routes.
-5. Create these navigation graphs:
+1. Создай Android- и iOS-приложения с общим `composeApp`.
+2. Настрой package name и bundle ID через конфигурацию проекта, не придумывая новые идентификаторы при наличии согласованных.
+3. Подключи:
+   - Compose Multiplatform;
+   - Navigation;
+   - Lifecycle ViewModel;
+   - Ktor Client;
+   - kotlinx.serialization;
+   - SQLDelight;
+   - DI;
+   - Compose Resources.
+4. Настрой build types:
+   - debug;
+   - release.
+5. Настрой окружения:
+   - local;
+   - production;
+   - при существующей потребности staging.
+6. Base URL не должен быть захардкожен внутри repositories.
+7. Учти адреса локального бэкенда:
+   - Android emulator;
+   - iOS Simulator;
+   - физическое устройство.
+8. Добавь безопасную debug-сетевую конфигурацию только для local development. Не ослабляй production transport security.
 
-```text
-Splash
-Auth
-  ├── SignIn
-  └── SignUp
-Main
-  ├── Plants
-  ├── Alerts
-  └── Settings
-PlantDetails
-AddPlant
-ClaimDevice
-DeviceCalibration
-```
+## App shell
 
-6. Create a minimal reusable design system matching the style of OQUTurbo apps:
-   - semantic colors;
-   - typography;
-   - spacing constants;
-   - shapes;
-   - app background;
-   - primary/secondary buttons;
-   - text fields;
-   - loading indicator;
-   - empty state;
-   - error state;
-   - offline banner;
-   - metric card;
-   - plant card.
-7. Support light and dark themes.
-8. Add localization infrastructure for:
-   - Kazakh;
-   - Russian;
-   - English.
-9. Use semantic resource names. Do not hardcode visible strings in composables.
-10. Add previews for reusable components and main screen states.
+Создай:
 
-## Navigation rules
+- splash/loading state;
+- root navigation;
+- auth graph;
+- main graph;
+- обработку deep links;
+- единый snackbar host;
+- базовые loading, empty, error и offline-состояния.
 
-- `Splash` decides where to navigate after session restoration.
-- Authentication screens must not remain in the back stack after successful login.
-- Logging out must clear the authenticated graph.
-- Pass IDs through navigation, not full models.
-- A screen must reload its model through its ViewModel/repository.
+Рекомендуемая основная навигация:
 
-## Acceptance criteria
+- **Растения**;
+- **Предупреждения**;
+- **Настройки**.
 
-- Android and iOS compile and open the shared application.
-- Type-safe navigation works for all placeholder destinations.
-- Theme switching does not recreate business state.
-- Kazakh, Russian, and English resources resolve correctly.
-- Components have loading, empty, error, and normal previews.
-- No feature contains its own duplicate colors or typography.
+Устройства открываются из растения или отдельного flow привязки, а не требуют обязательной нижней вкладки.
+
+## Design system
+
+Создай небольшой design system:
+
+- цвета;
+- типографика;
+- spacing;
+- shapes;
+- кнопки;
+- text fields;
+- cards;
+- metric cards;
+- status badges;
+- loading indicators;
+- empty/error/offline states.
+
+Поддержи:
+
+- светлую тему;
+- тёмную тему;
+- системную тему;
+- Dynamic Color на Android только как необязательное платформенное улучшение.
+
+Не усложняй дизайн-систему токенами, которые пока нигде не используются.
+
+## Критерии
+
+- Android-приложение запускается;
+- iOS-приложение запускается;
+- используется общий Compose UI;
+- навигация работает на обеих платформах;
+- local и production URL разделены;
+- backend-код не продублирован во frontend-модулях.
 
 ---
 
-# Step 2 — Network client, session, and authentication
+# Шаг 2. Подключить Firebase Authentication
 
-## Core network layer
+## Платформенные SDK
 
-Create one configured `HttpClient` per application process with:
+Используй официальные SDK:
 
-- platform engine;
+- Android — Firebase Authentication Android SDK;
+- iOS — Firebase Authentication Apple SDK.
+
+Не добавляй стороннюю KMP Firebase-обёртку без доказанной необходимости и явного объяснения.
+
+Платформенную интеграцию скрой за common-интерфейсом:
+
+```kotlin
+interface AuthProvider {
+    val authState: StateFlow<AuthState>
+
+    suspend fun signUp(email: String, password: String)
+    suspend fun signIn(email: String, password: String)
+    suspend fun sendPasswordReset(email: String)
+    suspend fun sendEmailVerification()
+    suspend fun reloadUser()
+    suspend fun getIdToken(forceRefresh: Boolean = false): String?
+    suspend fun signOut()
+}
+```
+
+Пример состояния:
+
+```kotlin
+sealed interface AuthState {
+    data object Loading : AuthState
+    data object Unauthenticated : AuthState
+    data class Authenticated(
+        val email: String?,
+        val emailVerified: Boolean,
+    ) : AuthState
+}
+```
+
+Сделай Android- и iOS-реализации через platform source sets или `expect/actual`.
+
+## Экраны
+
+Реализуй:
+
+- `LoginScreen`;
+- `RegisterScreen`;
+- `ForgotPasswordScreen`;
+- `VerifyEmailScreen`.
+
+Поддержи:
+
+- email/password;
+- валидацию email;
+- требования Firebase к паролю без выдуманных несовместимых ограничений;
+- понятное отображение ошибок;
+- loading и блокировку повторной отправки;
+- повторную отправку verification email;
+- повторную проверку статуса email;
+- logout;
+- восстановление Firebase-сессии после перезапуска.
+
+Google Sign-In и Sign in with Apple не должны блокировать базовый релиз. Реализуй их только отдельным подшагом, если соответствующие providers уже включены и присутствуют необходимые платформенные настройки.
+
+## После входа
+
+После успешной Firebase-аутентификации вызови существующий backend endpoint вида:
+
+```http
+GET /api/v1/auth/me
+Authorization: Bearer <Firebase ID Token>
+```
+
+Используй фактический путь из backend-кода.
+
+Backend создаёт или находит внутреннего пользователя. Клиент не создаёт внутренний UUID самостоятельно.
+
+## Критерии
+
+- регистрация и вход работают через Firebase;
+- пароль не отправляется на Ktor;
+- Firebase session восстанавливается;
+- неподтверждённый email обрабатывается согласно backend policy;
+- logout очищает пользовательское состояние;
+- common tests используют fake `AuthProvider`;
+- Firebase ID Token не выводится в лог.
+
+---
+
+# Шаг 3. Реализовать сетевой слой и Firebase-сессию
+
+## Ktor Client
+
+Настрой:
+
 - JSON content negotiation;
-- request timeout;
-- response validation;
-- request ID header;
-- authorization header injection;
-- redacted logging in debug builds only;
-- no body logging for authentication requests;
-- consistent mapping from backend errors to client errors.
+- таймауты;
+- безопасное логирование без `Authorization`;
+- единый разбор успешных ответов;
+- единый маппинг backend error contract;
+- connectivity errors;
+- cancellation;
+- debug logging только без секретов.
 
-Define a client error model equivalent to:
-
-```kotlin
-sealed interface AppError {
-    data object NoInternet : AppError
-    data object Unauthorized : AppError
-    data object Timeout : AppError
-    data class Validation(val message: String) : AppError
-    data class Server(val code: String?, val message: String?) : AppError
-    data class Unknown(val cause: Throwable?) : AppError
-}
-```
-
-Do not show raw exception messages to users.
-
-## Session storage
-
-Create:
+Создай абстракции уровня проекта, например:
 
 ```kotlin
-interface SecureTokenStorage {
-    suspend fun readRefreshToken(): String?
-    suspend fun writeRefreshToken(value: String)
-    suspend fun clear()
-}
+interface ApiClient
+interface AuthenticatedRequestExecutor
+interface BackendConfig
 ```
 
-Implement it using platform-secure storage:
+Не создавай отдельный wrapper для каждого HTTP-метода без необходимости.
 
-- Android: Android Keystore-backed storage;
-- iOS: Keychain.
+## Добавление Firebase ID Token
 
-Keep the access token in memory. Persist only what is required to restore the session.
+Перед защищённым запросом:
 
-## Token refresh
+1. Получить ID Token через `AuthProvider`.
+2. Добавить:
 
-Implement a `SessionManager` that:
-
-1. restores a refresh token at startup;
-2. obtains a new access token;
-3. serializes concurrent refresh attempts with a `Mutex`;
-4. retries the failed request once after successful refresh;
-5. never refreshes recursively for login/refresh endpoints;
-6. clears the session when refresh fails with an authentication error;
-7. emits session changes as a `StateFlow`.
-
-## Authentication feature
-
-Implement:
-
-```text
-SignInScreen
-SignUpScreen
+```http
+Authorization: Bearer <Firebase ID Token>
 ```
 
-Each screen must have:
+3. При первом `401`:
+   - принудительно обновить Firebase ID Token;
+   - повторить запрос ровно один раз.
+4. Если повтор снова вернул `401`:
+   - не создавать retry loop;
+   - перевести сессию в состояние повторного входа либо показать управляемую session error.
 
-- immutable `UiState`;
-- user actions;
-- field validation;
-- progress state;
-- server error handling;
-- password visibility control;
-- keyboard actions;
-- accessibility labels.
+Одновременное принудительное обновление токена синхронизируй через `Mutex`, чтобы параллельные запросы не запускали множество refresh-операций.
 
-Use common ViewModels:
+Не сохраняй Firebase ID Token в SQLDelight, preferences или собственное secure storage. Firebase SDK управляет своей сессией самостоятельно.
 
-```kotlin
-class SignInViewModel(...)
-class SignUpViewModel(...)
-```
+## Shared API contract
 
-Each ViewModel exposes:
+Если `:core:api-contract` уже совместим с KMP:
 
-```kotlin
-val state: StateFlow<State>
-fun onAction(action: Action)
-```
+- подключи его к клиенту;
+- не дублируй DTO.
 
-Use a separate `SharedFlow<Effect>` only for true one-time effects such as navigation or snackbar messages.
+Если он содержит JVM-only зависимости:
 
-## Acceptance criteria
+- не копируй весь модуль;
+- вынеси только реально общие сериализуемые DTO в KMP-compatible часть;
+- не переноси database/server entities.
 
-- Login, registration, refresh, and logout use the backend contracts.
-- Concurrent HTTP 401 responses trigger only one refresh request.
-- Refresh tokens never appear in logs.
-- Invalid fields are rejected before a network request.
-- Session restoration selects the correct navigation graph.
-- ViewModel tests cover success, validation, server error, and refresh failure.
+## Критерии
+
+- защищённые запросы используют Firebase ID Token;
+- `401` вызывает не более одного force refresh;
+- конкурентный refresh сериализован;
+- отменённые запросы не превращаются в generic error;
+- backend errors отображаются безопасно и понятно;
+- собственных access/refresh-токенов в клиенте нет.
 
 ---
 
-# Step 3 — SQLDelight cache and offline-first repositories
+# Шаг 4. Добавить локальную базу и offline cache
 
-## Local database
+Используй SQLDelight для кеширования:
 
-Create SQLDelight tables for cached client data:
+- пользователя;
+- растений;
+- устройств;
+- последнего состояния каждого устройства;
+- измерений, необходимых для выбранных диапазонов истории;
+- предупреждений;
+- правил предупреждений;
+- времени последней синхронизации.
 
-### `cached_plants`
+Требования:
 
-```text
-id TEXT primary key
-name TEXT not null
-species TEXT null
-image_url TEXT null
-archived_at TEXT null
-updated_at TEXT not null
-```
+- server data является source of truth;
+- UI может сразу показать cache, а затем обновиться из сети;
+- неуспешное обновление не удаляет валидный cache;
+- cache хранит server identifiers;
+- logout удаляет пользовательские данные текущего аккаунта;
+- cache разных аккаунтов не смешивается;
+- чувствительные токены в SQLDelight не хранятся;
+- миграции SQLDelight тестируются.
 
-### `cached_devices`
+Определи явную sync policy:
 
-```text
-id TEXT primary key
-plant_id TEXT null
-name TEXT not null
-firmware_version TEXT null
-last_seen_at TEXT null
-is_disabled INTEGER not null
-soil_dry_raw INTEGER null
-soil_wet_raw INTEGER null
-updated_at TEXT not null
-```
+- список растений — cache-first с последующим refresh;
+- детали растения — cache-first с refresh;
+- последнее измерение — cache-first, затем network/SSE;
+- история — network-first с fallback на cache;
+- предупреждения — cache-first с refresh;
+- mutation — server-first, затем обновление cache.
 
-### `cached_latest_measurements`
-
-```text
-device_id TEXT primary key
-measurement_id TEXT
-measured_at TEXT not null
-received_at TEXT not null
-soil_moisture_raw INTEGER null
-soil_moisture_percent REAL null
-air_temperature_celsius REAL null
-air_humidity_percent REAL null
-light_raw INTEGER null
-updated_at TEXT not null
-```
-
-### `cached_measurement_history`
-
-Cache only a bounded recent window or explicitly requested ranges. Add indexes needed for:
-
-```text
-device_id + measured_at
-```
-
-### `cached_alerts`
-
-Store enough information to show the alert list offline.
-
-## Repository contracts
-
-Create interfaces such as:
-
-```kotlin
-interface PlantRepository {
-    fun observePlants(): Flow<List<Plant>>
-    fun observePlant(id: PlantId): Flow<Plant?>
-    suspend fun refreshPlants()
-    suspend fun createPlant(command: CreatePlantCommand): Plant
-    suspend fun updatePlant(id: PlantId, command: UpdatePlantCommand)
-    suspend fun archivePlant(id: PlantId)
-}
-
-interface MeasurementRepository {
-    fun observeLatest(plantId: PlantId): Flow<PlantMeasurement?>
-    fun observeHistory(
-        plantId: PlantId,
-        range: MeasurementRange,
-        interval: MeasurementInterval,
-    ): Flow<List<MeasurementPoint>>
-    suspend fun refreshLatest(plantId: PlantId)
-    suspend fun refreshHistory(
-        plantId: PlantId,
-        range: MeasurementRange,
-        interval: MeasurementInterval,
-    )
-}
-```
-
-## Offline behavior
-
-- Read observable UI data from SQLDelight.
-- A refresh fetches remote data and writes it transactionally to SQLDelight.
-- The UI continues displaying cached content during refresh.
-- If refresh fails, retain cached data and expose a non-destructive error.
-- Empty cache plus network failure shows a full-screen retry state.
-- Existing cache plus network failure shows an offline banner/snackbar.
-- Never delete valid cache before a successful replacement arrives.
-- Clear user-owned cache on logout.
-
-Do not implement general write synchronization or conflict resolution in this version. Mutating actions require a network connection and update the cache after server success.
-
-## Acceptance criteria
-
-- SQLDelight drivers work on Android and iOS.
-- Plant and measurement flows update after database writes.
-- Cached content appears before remote refresh completes.
-- Failed refresh does not erase cached content.
-- Logout clears user-specific cached data and tokens.
-- Repository tests cover cache-first behavior and refresh failures.
+Не реализуй сложную двустороннюю offline-синхронизацию создания и редактирования сущностей в первой версии. При отсутствии сети mutation должна завершаться понятной ошибкой, не создавая ложное серверное состояние.
 
 ---
 
-# Step 4 — Plants home screen and plant management
+# Шаг 5. Реализовать растения
 
-## Plants screen
+## Экраны
 
-Implement the authenticated home screen with:
+Создай:
 
-- app title;
-- plant list;
-- latest status summary for each plant;
-- add-plant action;
-- pull-to-refresh when supported by the project's chosen component;
-- loading, empty, content, stale/offline, and error states.
+- `PlantsScreen`;
+- `CreatePlantScreen`;
+- `EditPlantScreen`;
+- `PlantDetailsScreen`.
 
-Each plant card should show:
+## Список растений
 
-- plant name;
-- optional species;
-- optional image;
-- soil moisture percentage when available;
-- last measurement time;
-- device online/offline state;
-- a concise warning indicator when an active alert exists.
+Карточка растения должна показывать доступные данные:
 
-Do not classify a plant as healthy solely from one measurement. Use neutral descriptions such as:
+- название;
+- вид растения, если он поддерживается API;
+- изображение или локальный placeholder;
+- влажность почвы;
+- состояние устройства;
+- время последнего измерения;
+- активное предупреждение.
 
-```text
-Soil moisture: 42%
-Updated 3 minutes ago
-Device offline
-```
+Состояния:
 
-## Add plant
+- loading;
+- empty;
+- content;
+- cached/offline;
+- recoverable error;
+- pull-to-refresh.
 
-Implement:
+Empty state должен предлагать:
 
-```text
-AddPlantScreen
-EditPlantScreen
-```
+- добавить растение;
+- привязать устройство.
 
-Fields:
+## Создание и редактирование
 
-- name, required;
-- species, optional;
-- image URL or image selection only if the backend supports uploads;
-- save/cancel.
+Используй фактические поля API. Валидируй:
 
-Do not implement image uploads if the backend task has not implemented storage.
+- обязательное название;
+- допустимые длины;
+- пороги, если они входят в форму;
+- server validation errors.
 
-## ViewModels
+Не реализуй распознавание растения по фотографии.
 
-Implement common ViewModels:
+## Детали растения
 
-```text
-PlantsViewModel
-AddPlantViewModel
-EditPlantViewModel
-```
+Покажи:
 
-Keep form state in the ViewModel when it must survive configuration changes and navigation recreation.
+- название и изображение;
+- online/offline состояние устройства;
+- время последнего измерения;
+- влажность почвы;
+- температуру воздуха;
+- влажность воздуха;
+- освещённость;
+- дополнительные показатели только при наличии в backend contract;
+- активные предупреждения;
+- историю;
+- действия редактирования, привязки и калибровки.
 
-## Acceptance criteria
+Каждая метрика должна корректно показывать:
 
-- Cached plants render immediately.
-- Refresh updates the list without blanking the screen.
-- Empty state clearly offers plant creation.
-- Creating/editing a plant updates the local cache after server success.
-- Archive/delete requires confirmation.
-- Ownership or HTTP 404 errors return the user safely to the list.
-- Tests cover all major `PlantsViewModel` states.
+- значение и единицу измерения;
+- отсутствие данных;
+- устаревшие данные;
+- время измерения;
+- нормальное/предупреждающее состояние, если сервер предоставляет пороги.
 
----
-
-# Step 5 — Plant details, charts, and realtime measurements
-
-## Plant details screen
-
-Implement `PlantDetailsScreen` with:
-
-1. plant header;
-2. connection status;
-3. latest measurement section;
-4. history chart;
-5. active alert summary;
-6. device/calibration entry point.
-
-Latest measurement cards:
-
-- soil moisture, `%`;
-- air temperature, `°C`;
-- air humidity, `%`;
-- light level, labeled as relative/raw until a lux sensor is used;
-- last update time.
-
-Handle missing values independently. One missing sensor must not hide the other readings.
-
-## History
-
-Support selectable periods:
-
-```text
-24 hours
-7 days
-30 days
-```
-
-Map them to backend intervals:
-
-```text
-24 hours → 5m or 1h
-7 days   → 1h
-30 days  → 1d
-```
-
-Use an existing multiplatform chart solution if the repository already has one. Otherwise implement a focused Compose Canvas line chart without introducing a large chart framework.
-
-The chart must include:
-
-- unit;
-- time axis;
-- selected series;
-- empty state;
-- loading overlay that preserves old data;
-- error state;
-- accessible textual summary of min/max/latest values.
-
-## Realtime SSE
-
-Use Ktor Client SSE for:
-
-```text
-GET /api/v1/plants/{plantId}/stream
-```
-
-Requirements:
-
-1. Connect only while the authenticated app is active and the relevant plant needs updates.
-2. Parse typed events.
-3. Write each received latest measurement to SQLDelight.
-4. Let the UI update through the existing database `Flow`.
-5. Reconnect with capped exponential backoff.
-6. Respect connectivity and app lifecycle.
-7. After reconnecting, call the REST latest endpoint to recover events that may have been missed.
-8. Do not treat SSE as the source of truth.
-9. Do not keep multiple connections for the same plant.
-
-## Acceptance criteria
-
-- The screen renders cached latest values immediately.
-- REST refresh updates latest values and history.
-- SSE events update the UI through SQLDelight without manual refresh.
-- Reconnection does not create duplicate collectors.
-- Leaving the screen releases the plant-specific realtime subscription.
-- Missing sensor fields and empty history do not crash the UI.
-- Tests cover event handling, reconnect policy, and period selection.
+Не выдавай локально придуманное заключение о здоровье растения за серверный диагноз.
 
 ---
 
-# Step 6 — Device claiming and calibration
+# Шаг 6. История измерений и realtime
 
-## Claim device flow
+## История
 
-Implement a guided flow:
+Добавь диапазоны, поддерживаемые API, например:
 
-```text
-Select plant
-    → Enter/scan claim code
-    → Confirm device
-    → Success
-    → Optional calibration
-```
+- 24 часа;
+- 7 дней;
+- 30 дней.
 
-For the first version:
+Покажи отдельные или переключаемые графики:
 
-- provide manual claim-code entry;
-- add QR scanning only if a suitable cross-platform scanner already exists in the repository;
-- do not block the feature on QR scanning;
-- validate code format locally;
-- handle used, expired, and invalid codes;
-- prevent duplicate submissions;
-- associate the claimed device with the selected plant.
+- влажность почвы;
+- температура воздуха;
+- влажность воздуха;
+- освещённость.
 
-## Device screen
+Требования:
 
-Show:
+- понятные оси и единицы;
+- локализованные даты;
+- корректная обработка пропусков;
+- отсутствие соединения точек через большие разрывы, если это вводит в заблуждение;
+- loading/empty/error states;
+- downsampled/aggregated данные с сервера для больших диапазонов;
+- доступность без обязательного различения только по цвету.
 
-- device name;
-- device ID in a copyable diagnostics section;
-- firmware version;
-- last-seen time;
-- online/offline status;
-- current upload interval if returned by the API;
-- calibration status;
-- rotate-token action only if the backend exposes it safely;
-- unlink action with confirmation.
+Используй существующую лёгкую chart library, если она уже есть и поддерживает KMP. Иначе реализуй узкоспециализированный line chart без создания собственного универсального chart framework.
 
-Never display the device token.
+## Realtime
 
-## Soil calibration wizard
+Используй фактический механизм бэкенда. Если реализован SSE:
 
-Implement a beginner-friendly wizard:
+- подключайся только после аутентификации;
+- передавай Firebase ID Token;
+- применяй новые измерения к repository/cache;
+- обновляй UI через Flow;
+- делай reconnect с exponential backoff и jitter;
+- не переподключайся после logout;
+- при возвращении в foreground выполняй refresh;
+- в background останавливай соединение, если это требуется платформой;
+- не создавай бесконечный tight reconnect loop.
 
-1. Explain what calibration does.
-2. Ask the user to place the sensor in dry soil and capture several readings.
-3. Use a median of multiple samples, not one sample.
-4. Ask the user to place the sensor in fully wet soil and repeat.
-5. Validate that values differ by a minimum safe amount.
-6. Explain and retry when values are equal or unstable.
-7. Submit `dryRaw` and `wetRaw` to the backend.
-8. Show the resulting percentage preview.
+Не опрашивай сервер каждые несколько секунд, если SSE уже доступен.
 
-If the backend does not yet provide live calibration samples, implement the UI and repository interface, then document the missing API instead of inventing readings.
-
-## Acceptance criteria
-
-- A valid claim code attaches a device to the selected plant.
-- Invalid/used/expired codes have distinct user-friendly messages.
-- The device token is never shown or logged.
-- Calibration handles normal and reversed ADC directions.
-- Calibration cannot complete with insufficient value separation.
-- ViewModel tests cover all claim and calibration states.
+Мобильное приложение не отвечает за постоянный мониторинг в фоне: ESP32 отправляет данные непосредственно на backend.
 
 ---
 
-# Step 7 — Alerts, settings, localization, and platform behavior
+# Шаг 7. Привязка устройства и калибровка
 
-## Alerts
+## Привязка
 
-Implement:
+Создай:
 
-```text
-AlertsScreen
-AlertRulesScreen
-```
+- `ClaimDeviceScreen`;
+- `DeviceDetailsScreen`.
 
-Support:
+Пользователь вводит или сканирует одноразовый claim-код, который затем отправляется в пользовательский backend endpoint.
 
-- low soil moisture;
-- high temperature;
-- low temperature;
-- device offline.
+Клиент не должен:
 
-The alerts list must have:
+- получать Device Token;
+- показывать Device Token;
+- сохранять Device Token;
+- отправлять телеметрию от имени ESP32.
 
-- active and resolved states;
-- timestamp;
-- plant name;
-- alert type;
-- acknowledge action where supported;
-- cached offline display;
-- pagination or bounded loading if required by the API.
+Обработай:
 
-Alert-rule editing must:
+- неверный код;
+- использованный код;
+- истёкший код;
+- устройство уже привязано;
+- отсутствие сети;
+- успешную привязку;
+- повторный запрос после неопределённого сетевого результата.
 
-- validate thresholds;
-- allow duration configuration;
-- explain that duration avoids warnings from one accidental reading;
-- preserve server values on failed save.
+Если QR scanning отсутствует в зависимостях, ручной ввод должен быть полностью рабочим. Сканирование можно добавить как платформенное улучшение.
 
-## Settings
+## Калибровка влажности почвы
 
-Implement:
+Создай пошаговый wizard:
 
-- language: system/Kazakh/Russian/English;
-- theme: system/light/dark;
-- account information;
-- app version;
-- diagnostics section for debug builds;
+1. Объяснение процедуры.
+2. Получение сухого значения.
+3. Получение влажного значения.
+4. Проверка результатов.
+5. Подтверждение и отправка.
+
+Используй фактический backend contract. Если API возвращает несколько samples:
+
+- показывай прогресс;
+- используй согласованную backend-логику;
+- не заменяй серверную валидацию клиентской.
+
+Обработай:
+
+- одинаковые wet/dry значения;
+- обратное направление ADC;
+- нестабильные samples;
+- timeout;
+- отключившееся устройство;
+- отмену без сохранения;
+- повторную калибровку.
+
+---
+
+# Шаг 8. Предупреждения и правила
+
+Создай:
+
+- `AlertsScreen`;
+- `AlertDetailsScreen`, только если это оправдано объёмом данных;
+- `AlertRulesScreen`.
+
+Поддержи типы, реально реализованные backend:
+
+- низкая влажность почвы;
+- высокая температура;
+- низкая температура;
+- устройство offline;
+- другие типы только из API contract.
+
+Список должен показывать:
+
+- active/resolved;
+- растение;
+- тип;
+- время;
+- измеренное значение и порог, если доступны;
+- acknowledge action, если поддерживается API;
+- cached/offline state.
+
+Редактирование правил должно:
+
+- валидировать пороги;
+- позволять задавать duration, если поле есть в API;
+- объяснять, что duration защищает от случайного одиночного измерения;
+- не менять UI на сохранённое состояние, если сервер отклонил запрос;
+- поддерживать сброс к серверным значениям после ошибки.
+
+---
+
+# Шаг 9. Настройки, локализация и доступность
+
+## Настройки
+
+Реализуй:
+
+- язык: системный, казахский, русский, английский;
+- тема: системная, светлая, тёмная;
+- данные аккаунта;
+- статус подтверждения email;
+- повторную отправку verification email;
+- версию приложения;
+- privacy policy placeholder/configurable URL;
+- diagnostics только в debug;
 - logout.
 
-Persist non-sensitive preferences locally. Keep authentication secrets in secure storage only.
+Несекретные preferences сохраняй локально.
 
-## Connectivity and lifecycle
+## Локализация
 
-Create small platform abstractions only where required:
+Все пользовательские строки должны находиться в Compose Multiplatform Resources.
 
-```kotlin
-interface ConnectivityObserver
-interface AppLifecycleObserver
-interface SecureTokenStorage
-```
+Поддержи:
 
-Use `expect/actual` only for platform APIs. Keep business behavior in `commonMain`.
+- `kk`;
+- `ru`;
+- `en`.
 
-Do not promise continuous background monitoring from the mobile app. The backend receives ESP32 readings independently; the mobile application may suspend networking in the background, especially on iOS.
+Не оставляй пользовательские строки в Kotlin-коде. После смены языка видимые экраны должны обновляться без перезапуска, если это поддерживается выбранной реализацией.
 
-## Push notifications
+Форматируй:
 
-If backend push support is ready:
+- даты;
+- время;
+- числа;
+- проценты;
+- температуру;
 
-- define a common `PushTokenRegistrar`;
-- implement platform registration;
-- send the push token to the backend;
-- route notification taps to the relevant plant/alert;
-- handle token refresh;
-- avoid logging push tokens.
+с учётом locale. Единицы измерения должны быть единообразными.
 
-If backend push support is not ready, keep the integration behind an interface and provide documentation, not a fake production implementation.
+## Доступность
 
-## Acceptance criteria
-
-- Alerts remain visible from cache when offline.
-- Rule edits validate thresholds and durations.
-- Language changes update visible resources correctly.
-- Theme and language persist across restarts.
-- Logout clears session and user-specific cache.
-- SSE/network work follows app lifecycle.
-- Platform-specific implementations compile on Android and iOS.
+- semantic labels;
+- `contentDescription` там, где изображение несёт смысл;
+- touch targets подходящего размера;
+- достаточный contrast;
+- поддержка увеличенного шрифта;
+- статус не обозначается только цветом;
+- графики имеют текстовое представление ключевых значений.
 
 ---
 
-# Step 8 — Testing, quality, and documentation
+# Шаг 10. FCM и Crashlytics
 
-## Unit tests
+Выполняй этот шаг после основной авторизации и API.
 
-Cover:
+## Firebase Cloud Messaging
 
-- session restoration;
-- serialized token refresh;
-- authentication validation;
-- repository cache-first behavior;
-- plant creation/editing;
-- latest measurement mapping;
-- history period mapping;
-- SSE event processing and reconnection policy;
-- device claim flow;
-- calibration median and validation;
-- alert rule validation;
-- logout cleanup.
+Подключи FCM на Android и iOS только если backend уже предоставляет endpoint регистрации пользовательского push token.
 
-Use the repository's existing coroutine test tools. Add Turbine only if no equivalent Flow-testing utility exists.
+Создай common-интерфейс:
+
+```kotlin
+interface PushTokenRegistrar {
+    suspend fun requestPermission(): PushPermissionResult
+    suspend fun currentToken(): String?
+    suspend fun syncToken()
+}
+```
+
+Платформенные реализации должны:
+
+- корректно запросить разрешение;
+- получить FCM token;
+- отправить его в backend с Firebase ID Token;
+- обработать ротацию token;
+- деактивировать регистрацию при logout, если backend это поддерживает;
+- не логировать token;
+- открывать нужное растение или предупреждение при нажатии на notification.
+
+На iOS настройка должна учитывать APNs.
+
+Если backend endpoint отсутствует:
+
+- не отправляй token в выдуманный endpoint;
+- оставь интерфейс и документацию;
+- зафиксируй backend dependency.
+
+## Crashlytics
+
+Подключи платформенные SDK:
+
+- Android Crashlytics;
+- iOS Crashlytics.
+
+Требования:
+
+- debug collection можно отключить;
+- release mapping/dSYM должны загружаться;
+- не записывать пароли, ID Token, FCM token, Device Token и персональные данные;
+- при необходимости создать минимальный common `CrashReporter`;
+- non-fatal ошибки не должны дублироваться бесконечно.
+
+Не подключай Firestore и Realtime Database.
+
+---
+
+# Шаг 11. Тесты
+
+## Common unit tests
+
+Покрой:
+
+- переходы `AuthState`;
+- login/register validation;
+- восстановление Firebase-сессии через fake provider;
+- вызов `/auth/me` после входа;
+- добавление ID Token;
+- однократный force refresh после `401`;
+- отсутствие бесконечного retry;
+- конкурентный refresh через `Mutex`;
+- logout cleanup;
+- cache-first поведение;
+- разделение cache разных пользователей;
+- создание и редактирование растения;
+- mapping последних измерений;
+- отсутствие отдельных метрик;
+- выбор периода истории;
+- обработку SSE и reconnect policy;
+- привязку устройства;
+- шаги калибровки;
+- валидацию alert rules.
+
+Используй coroutine test tools проекта. Добавляй Turbine только при отсутствии эквивалента.
 
 ## Integration tests
 
-Test:
+Проверь:
 
-- Ktor client serialization against representative backend JSON fixtures;
-- `ApiErrorResponse` mapping;
-- SQLDelight migrations and queries;
-- repository behavior with fake HTTP and a real local SQLDelight driver.
+- Ktor serialization на sanitized JSON fixtures;
+- соответствие актуальному `:core:api-contract`;
+- mapping backend errors;
+- SQLDelight migrations;
+- SQLDelight queries;
+- repositories с fake HTTP engine;
+- auth interceptor с fake `AuthProvider`.
 
-Store sanitized JSON fixtures under test resources. Keep them aligned with `:core:api-contract`.
+Тесты не должны обращаться к реальному Firebase или production backend.
 
 ## UI tests
 
-Add focused tests for:
+Добавь сфокусированные тесты:
 
-- login validation;
-- empty plants state;
-- populated plants state;
-- plant details with partially missing readings;
-- offline cached state;
+- login;
+- register;
+- verify email;
+- empty plants;
+- populated plants;
+- plant details;
+- частично отсутствующие readings;
+- offline cache;
 - claim-code errors;
-- calibration steps;
-- alert rules.
+- calibration;
+- alerts;
+- смена темы и языка.
 
-Prefer semantics-based selectors over text-only selectors where localization would make tests fragile.
+Используй semantics-based selectors, а не только текстовые селекторы, зависящие от локализации.
 
-## Quality
+## Platform verification
 
-- Run formatting and static-analysis tasks already used by the repository.
-- Ensure no blocking I/O runs on the main thread.
-- Collect flows using lifecycle-aware APIs.
-- Avoid unstable parameters that cause unnecessary recomposition.
-- Add `contentDescription` or semantic labels where needed.
-- Ensure touch targets and contrast are accessible.
-- Redact tokens and authorization headers in all logging.
+Проверь:
 
-## Documentation
+- Firebase Auth Android implementation;
+- Firebase Auth iOS implementation;
+- получение ID Token;
+- восстановление сессии;
+- deep link;
+- push permission и notification tap, если FCM реализован;
+- release-конфигурацию Crashlytics.
 
-Create or update frontend documentation with:
+---
 
-- architecture overview;
-- package/module structure;
+# Шаг 12. Документация и финальная проверка
+
+Создай frontend README или `docs/frontend.md`.
+
+Опиши:
+
+- архитектуру;
+- модули и packages;
 - dependency graph;
-- local backend URL configuration;
-- Android emulator backend address;
-- iOS simulator backend address;
-- session/token flow;
-- offline-cache behavior;
-- SSE lifecycle and reconnect behavior;
-- localization instructions;
-- Android and iOS run commands;
-- tests and checks;
-- known limitations.
+- Firebase Auth flow;
+- получение и обновление ID Token;
+- взаимодействие с `/auth/me`;
+- cache policy;
+- lifecycle SSE;
+- backend Base URL;
+- запуск Android;
+- запуск iOS;
+- локализацию;
+- тесты;
+- известные ограничения.
 
-Add a concise architecture decision record explaining:
+## Ручная настройка Firebase
 
-1. why the server is the source of truth;
-2. why SQLDelight is used as a cache;
-3. why SSE is used instead of continuous polling;
-4. why the app uses common ViewModels and shared Compose UI;
-5. why feature packages are preferred over many Gradle modules at this stage.
+Создай отдельный checklist того, что должен сделать владелец проекта:
 
-## Final verification
+1. Создать или выбрать Firebase project.
+2. Добавить Android app с правильным package name.
+3. Добавить iOS app с правильным bundle ID.
+4. Получить платформенные Firebase configuration files.
+5. Включить Email/Password в Firebase Authentication.
+6. При необходимости включить Google и Apple providers.
+7. Для Google Sign-In настроить SHA fingerprints и iOS URL scheme.
+8. Для Sign in with Apple настроить Apple capability и Firebase provider.
+9. Для FCM на iOS настроить APNs key.
+10. Настроить CI для платформенных Firebase-файлов согласно политике репозитория.
+11. Не добавлять server service account JSON во frontend.
 
-Run the actual available equivalents of:
+Отдельно укажи:
+
+- Firebase platform configuration files не являются backend service account credentials;
+- service account JSON должен существовать только в серверном окружении;
+- frontend никогда не должен содержать приватный ключ Firebase Admin.
+
+## Architecture decisions
+
+Добавь короткие ADR:
+
+1. Firebase Auth вместо собственной клиентской JWT-сессии.
+2. Ktor backend как source of truth.
+3. SQLDelight только как offline cache.
+4. SSE вместо частого polling.
+5. Shared Compose UI и common ViewModels.
+6. Feature packages вместо большого количества Gradle-модулей на старте.
+7. Официальные платформенные Firebase SDK за common interface.
+
+## Финальные команды
+
+Запусти реальные доступные эквиваленты:
 
 ```bash
 ./gradlew :core:api-contract:allTests
@@ -842,58 +942,81 @@ Run the actual available equivalents of:
 ./gradlew :app:composeApp:compileKotlinIosSimulatorArm64
 ```
 
-Also run repository formatting/static-analysis checks.
+Также запусти форматирование, lint и static analysis, используемые репозиторием.
 
-Report:
+Если iOS build невозможно выполнить в текущем окружении:
 
-1. completed steps;
-2. files and modules added;
-3. screens implemented;
-4. API endpoints consumed;
-5. local database tables;
-6. tests and build commands executed;
-7. any iOS checks that could not run and why;
-8. deviations from this task and why;
-9. remaining backend dependencies or limitations.
+- не заявляй, что он прошёл;
+- выполни доступную Kotlin compilation;
+- укажи точную команду для запуска на macOS;
+- перечисли непроверенные platform integration points.
 
 ---
 
 ## Non-goals
 
-Do not implement in this task:
+Не реализовывать:
 
-- backend or ESP32 firmware;
+- backend;
+- ESP32 firmware;
+- Device Token внутри мобильного приложения;
 - MQTT;
-- Bluetooth provisioning;
-- AI plant diagnosis;
-- automatic plant-species recognition;
-- camera-based health analysis;
-- social features;
-- payments or subscriptions;
-- complex multi-account sharing;
-- background polling every few seconds;
-- a custom navigation framework;
-- a custom generic MVI framework;
-- a full charting framework when a focused line chart is sufficient;
-- production push credentials.
+- Bluetooth/Wi-Fi provisioning ESP32, если для него нет отдельного утверждённого протокола;
+- Firestore;
+- Firebase Realtime Database;
+- AI-диагностику растения;
+- распознавание вида растения;
+- анализ фотографии;
+- социальные функции;
+- payments/subscriptions;
+- совместное владение растением несколькими аккаунтами;
+- сложную offline mutation queue;
+- фоновый polling каждые несколько секунд;
+- собственную навигационную библиотеку;
+- generic MVI framework;
+- универсальную chart framework;
+- production Firebase/APNs credentials.
 
 ---
 
 ## Definition of done
 
-The frontend task is complete when:
+Задача завершена, когда:
 
-- Android and iOS launch the shared Compose Multiplatform application;
-- a user can register, sign in, restore a session, and log out;
-- cached plants and measurements are available offline;
-- a user can create and edit a plant;
-- a device can be claimed and calibrated;
-- plant details show latest measurements and historical charts;
-- SSE updates latest measurements while the app is active;
-- alerts and alert rules are usable;
-- Kazakh, Russian, and English localization is present;
-- light and dark themes work;
-- tokens are stored securely and never logged;
-- common, Android, and iOS builds pass;
-- automated tests cover critical state, repository, and session behavior;
-- architecture and local development are documented.
+- Android и iOS запускают общее Compose Multiplatform приложение;
+- клиент создан с нуля без повреждения готового backend;
+- пользователь регистрируется и входит через Firebase Auth;
+- Firebase session восстанавливается;
+- Ktor получает Firebase ID Token;
+- клиент не использует старые JWT/refresh endpoints;
+- `401` вызывает максимум один force refresh;
+- пользователь может просматривать, создавать и редактировать растения;
+- устройство можно привязать claim-кодом;
+- Device Token ESP32 отсутствует в клиенте;
+- калибровка реализована;
+- последние измерения отображаются корректно;
+- история отображается на графиках;
+- realtime обновления работают в foreground;
+- cache доступен offline;
+- предупреждения и правила работают;
+- `kk`, `ru`, `en` локализации завершены;
+- светлая и тёмная темы работают;
+- FCM и Crashlytics подключены либо документирован конкретный backend/config blocker;
+- токены и секреты не логируются и не попадают в Git;
+- common, Android и доступные iOS проверки проходят;
+- критические flows покрыты тестами;
+- README содержит ручные шаги настройки Firebase.
+
+## Что предоставить после выполнения
+
+1. Краткое резюме.
+2. Список созданных модулей.
+3. Список реализованных экранов.
+4. Список использованных backend endpoints.
+5. Список таблиц SQLDelight.
+6. Результаты сборки, тестов, lint и static analysis.
+7. Результат Android-сборки.
+8. Результат iOS-компиляции или точные непроверенные пункты.
+9. Ручные действия, оставшиеся в Firebase Console, Apple Developer и CI.
+10. Backend dependencies и отсутствующие endpoints.
+11. Отклонения от задания с объяснением причин.
