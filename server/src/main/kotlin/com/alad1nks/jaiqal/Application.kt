@@ -23,12 +23,22 @@ import com.alad1nks.jaiqal.plugins.configureRouting
 import io.ktor.server.application.Application
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
+import com.alad1nks.jaiqal.alerts.AlertService
+import com.alad1nks.jaiqal.notifications.LoggingNotificationSender
+import com.alad1nks.jaiqal.notifications.NotificationWorker
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
+import org.slf4j.LoggerFactory
 
 fun main() {
     val config = AppConfig.fromEnvironment()
     val database = DatabaseInfrastructure.create(config.database)
     database.migrate()
     val eventBus = MeasurementEventBus()
+    val alertService = AlertService(database.dataSource)
+    val notificationWorker = NotificationWorker(database.dataSource, LoggingNotificationSender(), config.alerts)
     Runtime.getRuntime().addShutdownHook(Thread(database::close))
     embeddedServer(
         factory = Netty,
@@ -43,6 +53,8 @@ fun main() {
             UserApplicationService(JdbcUserApplicationStore(database.dataSource), config.jwt),
             PlantTelemetryService(JdbcPlantTelemetryRepository(database.dataSource), config.history),
             eventBus,
+            alertService,
+            notificationWorker,
         )
     }.start(wait = true)
 }
@@ -56,9 +68,28 @@ fun Application.configureApplication(
     userApplication: UserApplicationService? = null,
     plantTelemetry: PlantTelemetryService? = null,
     eventBus: MeasurementEventBus? = null,
+    alertService: AlertService? = null,
+    notificationWorker: NotificationWorker? = null,
 ) {
     configureMonitoring()
     configureHttp(config)
     configureAuthentication(config.jwt, deviceTokenAuthenticator)
-    configureRouting(databaseReadiness, deviceRepository, telemetry, userApplication, plantTelemetry, eventBus, config.history.heartbeatSeconds)
+    configureRouting(databaseReadiness, deviceRepository, telemetry, userApplication, plantTelemetry, eventBus, config.history.heartbeatSeconds, alertService)
+    if (alertService != null) {
+        eventBus?.let { bus -> launch(Dispatchers.IO) { bus.updates.collect { event -> event.plantId?.let(alertService::evaluatePlant) } } }
+        launch(Dispatchers.IO) {
+            val log = LoggerFactory.getLogger("AlertBackgroundWorker")
+            while (true) {
+                runCatching { alertService.plantsWithRules().forEach(alertService::evaluatePlant) }.onFailure { log.error("Alert evaluation failed", it) }
+                delay(config.alerts.evaluationSeconds * 1_000)
+            }
+        }
+    }
+    if (notificationWorker != null) launch(Dispatchers.IO) {
+        val log = LoggerFactory.getLogger("NotificationBackgroundWorker")
+        while (true) {
+            runCatching(notificationWorker::runOnce).onFailure { log.error("Notification outbox poll failed", it) }
+            delay(config.alerts.outboxPollSeconds * 1_000)
+        }
+    }
 }

@@ -12,6 +12,7 @@ import com.alad1nks.jaiqal.telemetry.TelemetryValidationException
 import com.alad1nks.jaiqal.users.UserApplicationService
 import com.alad1nks.jaiqal.telemetry.MeasurementEventBus
 import com.alad1nks.jaiqal.telemetry.PlantTelemetryService
+import com.alad1nks.jaiqal.alerts.AlertService
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.response.respond
@@ -31,6 +32,7 @@ fun Application.configureRouting(
     plantTelemetry: PlantTelemetryService? = null,
     eventBus: MeasurementEventBus? = null,
     heartbeatSeconds: Long = 15,
+    alerts: AlertService? = null,
 ) {
     routing {
         route("/health") {
@@ -62,7 +64,7 @@ fun Application.configureRouting(
                 }
             }
         }
-        userApplication?.let { userApi(it, plantTelemetry, eventBus, heartbeatSeconds) }
+        userApplication?.let { userApi(it, plantTelemetry, eventBus, heartbeatSeconds, alerts) }
     }
 }
 
