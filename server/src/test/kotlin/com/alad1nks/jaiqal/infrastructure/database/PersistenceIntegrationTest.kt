@@ -4,6 +4,8 @@ import com.alad1nks.jaiqal.config.DatabaseConfig
 import com.alad1nks.jaiqal.devices.DeviceRecord
 import com.alad1nks.jaiqal.plants.PlantRecord
 import com.alad1nks.jaiqal.telemetry.NewMeasurement
+import com.alad1nks.jaiqal.telemetry.HistoryRequest
+import com.alad1nks.jaiqal.api.contract.HistoryInterval
 import com.alad1nks.jaiqal.users.UserRecord
 import org.flywaydb.core.Flyway
 import org.junit.AfterClass
@@ -84,6 +86,22 @@ class PersistenceIntegrationTest {
         assertNull(store.claimDevice(user.id, plant.id, DeviceTokens.hashHex("one-time-code"), now))
     }
 
+    @Test
+    fun `latest uses state table and history aggregates in SQL buckets`() {
+        val ids = fixture()
+        val measurements = ExposedMeasurementRepository(infrastructure.database)
+        measurements.insert(NewMeasurement(ids.deviceId, 100, now.minusMinutes(4), now.minusMinutes(4), soilMoistureRaw = 1000, soilMoisturePercent = 20.0))!!
+        val second = measurements.insert(NewMeasurement(ids.deviceId, 101, now.minusMinutes(2), now.minusMinutes(2), soilMoistureRaw = 2000, soilMoisturePercent = 40.0))!!
+        measurements.upsertLatest(com.alad1nks.jaiqal.telemetry.LatestDeviceState(ids.deviceId, second.id, now))
+        val repository = JdbcPlantTelemetryRepository(infrastructure.dataSource)
+
+        assertEquals(2000, repository.latest(ids.userId, ids.plantId)?.soilMoistureRaw)
+        val points = repository.history(ids.userId, ids.plantId, HistoryRequest(now.minusMinutes(5), now, HistoryInterval.FIVE_MINUTES), 10)
+        assertEquals(1, points?.size)
+        assertEquals(30.0, points?.single()?.soilMoisturePercent)
+        assertNull(repository.history(UUID.randomUUID(), ids.plantId, HistoryRequest(now.minusMinutes(5), now, HistoryInterval.RAW), 10))
+    }
+
     private fun fixture(): FixtureIds {
         val suffix = UUID.randomUUID()
         val user = UserRecord(UUID.randomUUID(), "$suffix@example.test", "argon2-hash", now)
@@ -92,10 +110,10 @@ class PersistenceIntegrationTest {
         ExposedPlantRepository(infrastructure.database).create(plant)
         val device = DeviceRecord(UUID.randomUUID(), plant.id, "Sensor", "sha256-hash", createdAt = now)
         ExposedDeviceRepository(infrastructure.database).create(device)
-        return FixtureIds(user.id, device.id)
+        return FixtureIds(user.id, plant.id, device.id)
     }
 
-    private data class FixtureIds(val userId: UUID, val deviceId: UUID)
+    private data class FixtureIds(val userId: UUID, val plantId: UUID, val deviceId: UUID)
 
     companion object {
         private val postgres = PostgreSQLContainer<Nothing>("postgres:17-alpine")

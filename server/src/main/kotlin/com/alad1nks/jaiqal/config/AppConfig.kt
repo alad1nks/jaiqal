@@ -6,6 +6,7 @@ data class AppConfig(
     val jwt: JwtConfig,
     val allowedOrigins: Set<String>,
     val telemetry: TelemetryConfig = TelemetryConfig(),
+    val history: HistoryConfig = HistoryConfig(),
 ) {
     companion object {
         fun fromEnvironment(
@@ -56,6 +57,13 @@ data class AppConfig(
                     maxAdc = intValue(environment, "TELEMETRY_MAX_ADC", 65_535),
                     nextUploadSeconds = intValue(environment, "TELEMETRY_NEXT_UPLOAD_SECONDS", 60),
                 ),
+                history = HistoryConfig(
+                    maxRangeSeconds = longValue(environment, "HISTORY_MAX_RANGE_SECONDS", 31_536_000),
+                    defaultRangeSeconds = longValue(environment, "HISTORY_DEFAULT_RANGE_SECONDS", 86_400),
+                    maxPoints = intValue(environment, "HISTORY_MAX_POINTS", 2_000),
+                    onlineWindowSeconds = longValue(environment, "DEVICE_ONLINE_WINDOW_SECONDS", 180),
+                    heartbeatSeconds = longValue(environment, "SSE_HEARTBEAT_SECONDS", 15),
+                ),
             )
         }
 
@@ -63,6 +71,16 @@ data class AppConfig(
         private fun intValue(env: (String) -> String?, name: String, default: Int) = env(name)?.toIntOrNull() ?: default
         private fun doubleValue(env: (String) -> String?, name: String, default: Double) = env(name)?.toDoubleOrNull() ?: default
     }
+}
+
+data class HistoryConfig(
+    val maxRangeSeconds: Long = 31_536_000,
+    val defaultRangeSeconds: Long = 86_400,
+    val maxPoints: Int = 2_000,
+    val onlineWindowSeconds: Long = 180,
+    val heartbeatSeconds: Long = 15,
+) {
+    init { require(maxRangeSeconds > 0 && defaultRangeSeconds in 1..maxRangeSeconds && maxPoints > 0 && onlineWindowSeconds > 0 && heartbeatSeconds > 0) }
 }
 
 data class TelemetryConfig(
