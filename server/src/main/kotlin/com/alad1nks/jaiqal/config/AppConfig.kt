@@ -43,6 +43,8 @@ data class AppConfig(
                     issuer = required("JWT_ISSUER"),
                     audience = required("JWT_AUDIENCE"),
                     secret = required("JWT_SECRET"),
+                    accessTokenSeconds = longValue(environment, "JWT_ACCESS_TOKEN_SECONDS", 900),
+                    refreshTokenSeconds = longValue(environment, "JWT_REFRESH_TOKEN_SECONDS", 2_592_000),
                 ),
                 allowedOrigins = allowedOrigins,
                 telemetry = TelemetryConfig(
@@ -90,4 +92,8 @@ data class JwtConfig(
     val issuer: String,
     val audience: String,
     val secret: String,
-)
+    val accessTokenSeconds: Long = 900,
+    val refreshTokenSeconds: Long = 2_592_000,
+) {
+    init { require(accessTokenSeconds > 0 && refreshTokenSeconds > 0) }
+}

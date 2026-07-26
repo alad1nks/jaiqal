@@ -29,7 +29,7 @@ class PersistenceIntegrationTest {
         infrastructure.dataSource.connection.use { connection ->
             val expected = setOf(
                 "users", "plants", "devices", "measurements", "device_latest_state",
-                "refresh_tokens", "alert_rules", "alert_events", "notification_outbox",
+                "refresh_tokens", "alert_rules", "alert_events", "notification_outbox", "device_claim_codes",
             )
             connection.metaData.getTables(null, "public", "%", arrayOf("TABLE")).use { rows ->
                 val actual = buildSet { while (rows.next()) add(rows.getString("TABLE_NAME")) }
@@ -61,6 +61,27 @@ class PersistenceIntegrationTest {
                 }
             }
         }
+    }
+
+    @Test
+    fun `claim code is consumed exactly once`() {
+        val user = UserRecord(UUID.randomUUID(), "${UUID.randomUUID()}-claim@example.test", "argon2-hash", now)
+        ExposedUserRepository(infrastructure.database).create(user)
+        val plant = PlantRecord(UUID.randomUUID(), user.id, "Claim plant", createdAt = now)
+        ExposedPlantRepository(infrastructure.database).create(plant)
+        val device = DeviceRecord(UUID.randomUUID(), null, "Unclaimed", DeviceTokens.hashHex("device-token"), createdAt = now)
+        ExposedDeviceRepository(infrastructure.database).create(device)
+        infrastructure.dataSource.connection.use { connection ->
+            connection.prepareStatement("INSERT INTO device_claim_codes(id,device_id,code_hash,expires_at,created_at) VALUES(?,?,?,?,?)").use {
+                it.setObject(1, UUID.randomUUID()); it.setObject(2, device.id)
+                it.setString(3, DeviceTokens.hashHex("one-time-code")); it.setObject(4, now.plusHours(1)); it.setObject(5, now)
+                it.executeUpdate()
+            }
+            connection.commit()
+        }
+        val store = JdbcUserApplicationStore(infrastructure.dataSource)
+        assertNotNull(store.claimDevice(user.id, plant.id, DeviceTokens.hashHex("one-time-code"), now))
+        assertNull(store.claimDevice(user.id, plant.id, DeviceTokens.hashHex("one-time-code"), now))
     }
 
     private fun fixture(): FixtureIds {

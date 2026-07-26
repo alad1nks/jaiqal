@@ -11,6 +11,8 @@ import com.alad1nks.jaiqal.infrastructure.database.ExposedDeviceTokenAuthenticat
 import com.alad1nks.jaiqal.infrastructure.database.ExposedTelemetryStore
 import com.alad1nks.jaiqal.devices.DeviceRepository
 import com.alad1nks.jaiqal.telemetry.TelemetryIngestionService
+import com.alad1nks.jaiqal.infrastructure.database.JdbcUserApplicationStore
+import com.alad1nks.jaiqal.users.UserApplicationService
 import com.alad1nks.jaiqal.plugins.configureAuthentication
 import com.alad1nks.jaiqal.plugins.configureHttp
 import com.alad1nks.jaiqal.plugins.configureMonitoring
@@ -34,6 +36,7 @@ fun main() {
             ExposedDeviceTokenAuthenticator(database.database),
             ExposedDeviceRepository(database.database),
             TelemetryIngestionService(ExposedTelemetryStore(database.database), config.telemetry),
+            UserApplicationService(JdbcUserApplicationStore(database.dataSource), config.jwt),
         )
     }.start(wait = true)
 }
@@ -44,9 +47,10 @@ fun Application.configureApplication(
     deviceTokenAuthenticator: DeviceTokenAuthenticator = DeviceTokenAuthenticator.rejectAll(),
     deviceRepository: DeviceRepository? = null,
     telemetry: TelemetryIngestionService? = null,
+    userApplication: UserApplicationService? = null,
 ) {
     configureMonitoring()
     configureHttp(config)
     configureAuthentication(config.jwt, deviceTokenAuthenticator)
-    configureRouting(databaseReadiness, deviceRepository, telemetry)
+    configureRouting(databaseReadiness, deviceRepository, telemetry, userApplication)
 }

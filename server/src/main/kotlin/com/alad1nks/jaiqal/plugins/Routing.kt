@@ -9,6 +9,7 @@ import com.alad1nks.jaiqal.auth.DevicePrincipal
 import com.alad1nks.jaiqal.devices.DeviceRepository
 import com.alad1nks.jaiqal.telemetry.TelemetryIngestionService
 import com.alad1nks.jaiqal.telemetry.TelemetryValidationException
+import com.alad1nks.jaiqal.users.UserApplicationService
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.response.respond
@@ -24,6 +25,7 @@ fun Application.configureRouting(
     databaseReadiness: DatabaseReadiness,
     deviceRepository: DeviceRepository? = null,
     telemetry: TelemetryIngestionService? = null,
+    userApplication: UserApplicationService? = null,
 ) {
     routing {
         route("/health") {
@@ -55,6 +57,7 @@ fun Application.configureRouting(
                 }
             }
         }
+        userApplication?.let { userApi(it) }
     }
 }
 

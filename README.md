@@ -46,6 +46,8 @@ DATABASE_PASSWORD=replace-with-local-password
 JWT_ISSUER=https://auth.example.com
 JWT_AUDIENCE=jaiqal-app
 JWT_SECRET=replace-with-a-long-random-secret
+JWT_ACCESS_TOKEN_SECONDS=900
+JWT_REFRESH_TOKEN_SECONDS=2592000
 ALLOWED_ORIGINS=http://localhost:8081,http://localhost:3000
 # Optional telemetry controls (shown with defaults)
 TELEMETRY_PAST_WINDOW_SECONDS=2592000
@@ -95,6 +97,32 @@ with a `measurements` array of 1–100 entries. Sequences are idempotent per dev
 Missing timestamps, or timestamps outside the configured window, use receipt time
 and record the fallback reason in measurement metadata. Successful inserts update
 the latest state only when their measurement time is newer.
+
+### Users, plants, and device claiming
+
+User authentication is available under `/api/v1/auth` through `register`,
+`login`, `refresh`, and authenticated `logout` endpoints. Passwords are stored as
+Argon2id hashes. Access JWTs are short lived; opaque refresh tokens rotate on each
+use, and replaying a rotated token is rejected.
+
+Authenticated plant management uses `GET/POST /api/v1/plants` and
+`GET/PATCH/DELETE /api/v1/plants/{plantId}`. Deletion archives a plant. Device
+management uses `/api/v1/devices`, including claim, calibration, update, and
+token-rotation operations. All lookups are scoped to the JWT subject and return
+404 for resources owned by another account.
+
+In development, provision an unattached sensor and a 24-hour one-time claim code:
+
+```shell
+DATABASE_URL=jdbc:postgresql://localhost:5432/jaiqal \
+DATABASE_USER=jaiqal DATABASE_PASSWORD=local-password DEVICE_NAME="Living room" \
+./gradlew :server:provisionDevice
+```
+
+The command prints the raw device token and claim code exactly for provisioning;
+the database stores only their SHA-256 hashes. Claim the device by sending the
+code and an owned plant ID to `POST /api/v1/devices/claim`. Rotating a device
+token immediately invalidates the previous token.
 
 ---
 
