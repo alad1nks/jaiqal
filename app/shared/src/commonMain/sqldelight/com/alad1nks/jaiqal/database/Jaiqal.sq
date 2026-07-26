@@ -1,0 +1,6 @@
+CREATE TABLE cached_plants (id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, species TEXT, image_url TEXT, archived_at TEXT, updated_at TEXT NOT NULL);
+CREATE TABLE cached_devices (id TEXT NOT NULL PRIMARY KEY, plant_id TEXT, name TEXT NOT NULL, firmware_version TEXT, last_seen_at TEXT, is_disabled INTEGER NOT NULL, soil_dry_raw INTEGER, soil_wet_raw INTEGER, updated_at TEXT NOT NULL);
+CREATE TABLE cached_latest_measurements (device_id TEXT NOT NULL PRIMARY KEY, measurement_id TEXT, measured_at TEXT NOT NULL, received_at TEXT NOT NULL, soil_moisture_raw INTEGER, soil_moisture_percent REAL, air_temperature_celsius REAL, air_humidity_percent REAL, light_raw INTEGER, updated_at TEXT NOT NULL);
+CREATE TABLE cached_measurement_history (device_id TEXT NOT NULL, measured_at TEXT NOT NULL, soil_moisture_percent REAL, air_temperature_celsius REAL, air_humidity_percent REAL, light_raw REAL, PRIMARY KEY(device_id, measured_at));
+CREATE INDEX cached_history_device_time ON cached_measurement_history(device_id, measured_at);
+CREATE TABLE cached_alerts (id TEXT NOT NULL PRIMARY KEY, plant_id TEXT NOT NULL, type TEXT NOT NULL, status TEXT NOT NULL, triggered_at TEXT NOT NULL, recovered_at TEXT, acknowledged_at TEXT, updated_at TEXT NOT NULL);

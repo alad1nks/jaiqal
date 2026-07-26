@@ -132,3 +132,9 @@ The suite combines pure unit tests, Ktor route tests, and PostgreSQL Testcontain
 - Offline-device alert evaluation is polling-based, and telemetry aggregation uses standard PostgreSQL rather than TimescaleDB.
 - Device provisioning is an operator Gradle command; there is no administrator UI.
 - Firmware, MQTT, image uploads, species recognition, and AI recommendations are outside the current scope.
+
+## Frontend architecture
+
+The production frontend is developed in the existing `:app:shared` Compose Multiplatform module; it is the repository's equivalent of `composeApp`. Android and iOS use the same root UI, type-safe destinations, semantic light/dark design system, and English/Russian/Kazakh resources. Shared domain contracts, Firebase session coordination, redacted Ktor client configuration, offline SQL cache schema, calibration rules, and reusable screen states live there. See [`docs/frontend.md`](docs/frontend.md) for configuration, lifecycle, localization, tests, and known integration dependencies, and [`docs/adr/0001-shared-offline-frontend.md`](docs/adr/0001-shared-offline-frontend.md) for the architectural rationale.
+
+The frontend follows the backend's Firebase-only user authentication model. It sends Firebase ID tokens to user endpoints and does not restore the legacy application-issued JWT/refresh-token flow described by older clients.

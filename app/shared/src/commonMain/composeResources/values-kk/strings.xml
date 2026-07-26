@@ -1,0 +1,8 @@
+<resources>
+<string name="app_name">Жайқал</string><string name="plants">Өсімдіктер</string><string name="alerts">Ескертулер</string><string name="settings">Баптаулар</string>
+<string name="sign_in">Кіру</string><string name="sign_up">Тіркелгі жасау</string><string name="email">Эл. пошта</string><string name="password">Құпиясөз</string>
+<string name="add_plant">Өсімдік қосу</string><string name="claim_device">Құрылғыны қосу</string><string name="calibrate">Сенсорды калибрлеу</string><string name="offline">Желі жоқ · сақталған деректер көрсетілді</string>
+<string name="loading">Жүктелуде…</string><string name="retry">Қайталау</string><string name="empty_plants">Өсімдіктер әлі жоқ</string><string name="soil">Топырақ ылғалдылығы</string>
+<string name="temperature">Температура</string><string name="humidity">Ауа ылғалдылығы</string><string name="light">Жарық (raw)</string><string name="save">Сақтау</string><string name="cancel">Бас тарту</string>
+<string name="logout">Шығу</string><string name="language">Тіл</string><string name="theme">Тақырып</string><string name="history">Тарих</string><string name="device">Құрылғы</string>
+</resources>

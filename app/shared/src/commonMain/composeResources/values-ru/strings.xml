@@ -1,0 +1,8 @@
+<resources>
+<string name="app_name">Жайқал</string><string name="plants">Растения</string><string name="alerts">Оповещения</string><string name="settings">Настройки</string>
+<string name="sign_in">Войти</string><string name="sign_up">Создать аккаунт</string><string name="email">Эл. почта</string><string name="password">Пароль</string>
+<string name="add_plant">Добавить растение</string><string name="claim_device">Подключить устройство</string><string name="calibrate">Калибровать датчик</string><string name="offline">Нет сети · показаны сохранённые данные</string>
+<string name="loading">Загрузка…</string><string name="retry">Повторить</string><string name="empty_plants">Растений пока нет</string><string name="soil">Влажность почвы</string>
+<string name="temperature">Температура</string><string name="humidity">Влажность воздуха</string><string name="light">Освещение (raw)</string><string name="save">Сохранить</string><string name="cancel">Отмена</string>
+<string name="logout">Выйти</string><string name="language">Язык</string><string name="theme">Тема</string><string name="history">История</string><string name="device">Устройство</string>
+</resources>

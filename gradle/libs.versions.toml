@@ -19,6 +19,10 @@ kotlinx-datetime = "0.7.1"
 ktor = "3.5.1"
 logback = "1.6.0"
 material3 = "1.11.0-alpha07"
+navigation = "2.9.2"
+koin = "4.1.1"
+ktorfit-client = "3.5.1"
+sqldelight = "2.2.1"
 postgresql = "42.7.10"
 hikari = "7.0.2"
 flyway = "11.13.2"
@@ -70,6 +74,17 @@ exposed-json = { module = "org.jetbrains.exposed:exposed-json", version.ref = "e
 testcontainers-postgresql = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
 firebase-admin = { module = "com.google.firebase:firebase-admin", version.ref = "firebase-admin" }
 wrappers-browser = { module = "org.jetbrains.kotlin-wrappers:kotlin-browser", version.ref = "kotlin-wrappers" }
+navigation-compose = { module = "org.jetbrains.androidx.navigation:navigation-compose", version.ref = "navigation" }
+koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
+ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktorfit-client" }
+ktor-client-contentNegotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktorfit-client" }
+ktor-client-sse = { module = "io.ktor:ktor-client-sse", version.ref = "ktorfit-client" }
+ktor-client-logging = { module = "io.ktor:ktor-client-logging", version.ref = "ktorfit-client" }
+ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktorfit-client" }
+ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktorfit-client" }
+ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktorfit-client" }
+ktor-serialization-json-client = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktorfit-client" }
+sqldelight-runtime = { module = "app.cash.sqldelight:runtime", version.ref = "sqldelight" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
@@ -80,3 +95,4 @@ kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ktor = { id = "io.ktor.plugin", version.ref = "ktor" }
+sqldelight = { id = "app.cash.sqldelight", version.ref = "sqldelight" }
