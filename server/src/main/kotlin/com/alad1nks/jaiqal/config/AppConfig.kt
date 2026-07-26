@@ -5,6 +5,7 @@ data class AppConfig(
     val database: DatabaseConfig,
     val jwt: JwtConfig,
     val allowedOrigins: Set<String>,
+    val telemetry: TelemetryConfig = TelemetryConfig(),
 ) {
     companion object {
         fun fromEnvironment(
@@ -44,8 +45,38 @@ data class AppConfig(
                     secret = required("JWT_SECRET"),
                 ),
                 allowedOrigins = allowedOrigins,
+                telemetry = TelemetryConfig(
+                    pastWindowSeconds = longValue(environment, "TELEMETRY_PAST_WINDOW_SECONDS", 2_592_000),
+                    futureWindowSeconds = longValue(environment, "TELEMETRY_FUTURE_WINDOW_SECONDS", 300),
+                    minTemperatureCelsius = doubleValue(environment, "TELEMETRY_MIN_TEMPERATURE_CELSIUS", -50.0),
+                    maxTemperatureCelsius = doubleValue(environment, "TELEMETRY_MAX_TEMPERATURE_CELSIUS", 100.0),
+                    minAdc = intValue(environment, "TELEMETRY_MIN_ADC", 0),
+                    maxAdc = intValue(environment, "TELEMETRY_MAX_ADC", 65_535),
+                    nextUploadSeconds = intValue(environment, "TELEMETRY_NEXT_UPLOAD_SECONDS", 60),
+                ),
             )
         }
+
+        private fun longValue(env: (String) -> String?, name: String, default: Long) = env(name)?.toLongOrNull() ?: default
+        private fun intValue(env: (String) -> String?, name: String, default: Int) = env(name)?.toIntOrNull() ?: default
+        private fun doubleValue(env: (String) -> String?, name: String, default: Double) = env(name)?.toDoubleOrNull() ?: default
+    }
+}
+
+data class TelemetryConfig(
+    val pastWindowSeconds: Long = 2_592_000,
+    val futureWindowSeconds: Long = 300,
+    val minTemperatureCelsius: Double = -50.0,
+    val maxTemperatureCelsius: Double = 100.0,
+    val minAdc: Int = 0,
+    val maxAdc: Int = 65_535,
+    val nextUploadSeconds: Int = 60,
+) {
+    init {
+        require(pastWindowSeconds >= 0 && futureWindowSeconds >= 0)
+        require(minTemperatureCelsius.isFinite() && minTemperatureCelsius <= maxTemperatureCelsius)
+        require(minAdc <= maxAdc)
+        require(nextUploadSeconds > 0)
     }
 }
 
