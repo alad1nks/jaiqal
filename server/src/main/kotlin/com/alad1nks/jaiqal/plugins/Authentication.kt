@@ -44,6 +44,7 @@ fun Application.configureAuthentication(
 
         bearer(DEVICE_TOKEN_AUTH) {
             realm = "jaiqal-devices"
+            authSchemes("Device")
             authenticate { credential ->
                 deviceTokenAuthenticator.authenticate(credential.token)
             }

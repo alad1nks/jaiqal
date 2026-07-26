@@ -1,7 +1,10 @@
 package com.alad1nks.jaiqal.auth
 
+import java.util.UUID
+
 data class DevicePrincipal(
-    val deviceId: String,
+    val deviceId: UUID,
+    val disabled: Boolean = false,
 )
 
 fun interface DeviceTokenAuthenticator {

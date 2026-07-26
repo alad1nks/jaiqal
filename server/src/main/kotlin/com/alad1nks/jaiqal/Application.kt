@@ -6,6 +6,13 @@ import com.alad1nks.jaiqal.infrastructure.database.DatabaseReadiness
 import com.alad1nks.jaiqal.infrastructure.database.JdbcDatabaseReadiness
 import com.alad1nks.jaiqal.infrastructure.database.DatabaseInfrastructure
 import com.alad1nks.jaiqal.infrastructure.database.DataSourceDatabaseReadiness
+import com.alad1nks.jaiqal.infrastructure.database.ExposedDeviceRepository
+import com.alad1nks.jaiqal.infrastructure.database.ExposedDeviceTokenAuthenticator
+import com.alad1nks.jaiqal.infrastructure.database.ExposedTelemetryStore
+import com.alad1nks.jaiqal.devices.DeviceRepository
+import com.alad1nks.jaiqal.telemetry.TelemetryIngestionService
+import com.alad1nks.jaiqal.infrastructure.database.JdbcUserApplicationStore
+import com.alad1nks.jaiqal.users.UserApplicationService
 import com.alad1nks.jaiqal.plugins.configureAuthentication
 import com.alad1nks.jaiqal.plugins.configureHttp
 import com.alad1nks.jaiqal.plugins.configureMonitoring
@@ -24,7 +31,13 @@ fun main() {
         port = config.httpPort,
         host = "0.0.0.0",
     ) {
-        configureApplication(config, DataSourceDatabaseReadiness(database.dataSource))
+        configureApplication(
+            config, DataSourceDatabaseReadiness(database.dataSource),
+            ExposedDeviceTokenAuthenticator(database.database),
+            ExposedDeviceRepository(database.database),
+            TelemetryIngestionService(ExposedTelemetryStore(database.database), config.telemetry),
+            UserApplicationService(JdbcUserApplicationStore(database.dataSource), config.jwt),
+        )
     }.start(wait = true)
 }
 
@@ -32,9 +45,12 @@ fun Application.configureApplication(
     config: AppConfig,
     databaseReadiness: DatabaseReadiness = JdbcDatabaseReadiness(config.database),
     deviceTokenAuthenticator: DeviceTokenAuthenticator = DeviceTokenAuthenticator.rejectAll(),
+    deviceRepository: DeviceRepository? = null,
+    telemetry: TelemetryIngestionService? = null,
+    userApplication: UserApplicationService? = null,
 ) {
     configureMonitoring()
     configureHttp(config)
     configureAuthentication(config.jwt, deviceTokenAuthenticator)
-    configureRouting(databaseReadiness)
+    configureRouting(databaseReadiness, deviceRepository, telemetry, userApplication)
 }

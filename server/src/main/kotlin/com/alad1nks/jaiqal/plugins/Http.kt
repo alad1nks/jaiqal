@@ -16,6 +16,7 @@ import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.response.respond
 import kotlinx.serialization.json.Json
 import java.net.URI
+import com.alad1nks.jaiqal.users.UserApiException
 
 fun Application.configureHttp(config: AppConfig) {
     install(ContentNegotiation) {
@@ -50,6 +51,9 @@ fun Application.configureHttp(config: AppConfig) {
     }
 
     install(StatusPages) {
+        exception<UserApiException> { call, failure ->
+            call.respondApiError(HttpStatusCode.fromValue(failure.status), failure.code, failure.message)
+        }
         status(HttpStatusCode.Unauthorized) { call, _ ->
             call.respondApiError(
                 status = HttpStatusCode.Unauthorized,

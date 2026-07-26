@@ -10,6 +10,13 @@ application {
     mainClass = "com.alad1nks.jaiqal.ApplicationKt"
 }
 
+tasks.register<JavaExec>("provisionDevice") {
+    group = "application"
+    description = "Creates an unclaimed device and one-time claim code"
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass = "com.alad1nks.jaiqal.devices.ProvisionDeviceKt"
+}
+
 dependencies {
     implementation(project(":core:api-contract"))
     implementation(libs.kotlinx.serialization.json)
@@ -22,6 +29,7 @@ dependencies {
     implementation(libs.exposed.jdbc)
     implementation(libs.exposed.javaTime)
     implementation(libs.exposed.json)
+    implementation(libs.argon2)
     implementation(libs.ktor.serializationKotlinxJson)
     implementation(libs.ktor.serverAuth)
     implementation(libs.ktor.serverAuthJwt)
