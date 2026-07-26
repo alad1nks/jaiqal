@@ -7,7 +7,7 @@
 | Module | Purpose |
 | --- | --- |
 | `:core:api-contract` | KMP-safe serializable requests, responses, and public API enums. |
-| `:server` | JVM Ktor API, authentication, telemetry, alerts, notification worker, Exposed/JDBC persistence, and Flyway migrations. |
+| `:server` | JVM Ktor API, Firebase authentication, telemetry, alerts, notification worker, Exposed/JDBC persistence, and Flyway migrations. |
 | `:app:shared` | Shared Compose UI and client code for Android, iOS, desktop, and web launchers. |
 
 The server is organized by `auth`, `users`, `plants`, `devices`, `telemetry`, `alerts`, and `notifications` features. PostgreSQL access is isolated in `infrastructure/database`. Measurements are committed before an in-process event is published. Alert transitions and notification outbox records are committed atomically; a background worker claims and retries delivery. The bundled sender logs notifications, so local development needs no FCM or APNs credentials.
@@ -23,13 +23,13 @@ Copy the development template before starting locally:
 cp .env.example .env
 ```
 
-`.env.example` contains fake local values only. Never use its JWT secret or database password in a deployed environment and never commit `.env`.
+`.env.example` contains fake local values only. Never use its database password in a deployed environment and never commit `.env` or Firebase credentials.
 
 ### Environment variables
 
-The required variables are `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD`, `JWT_ISSUER`, `JWT_AUDIENCE`, and `JWT_SECRET`. `HTTP_PORT` defaults to `8080`; `ALLOWED_ORIGINS` is a comma-separated allowlist of complete origins and may be empty.
+The required variables are `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD`, and `FIREBASE_PROJECT_ID`. Firebase Admin also needs Application Default Credentials (locally, usually `GOOGLE_APPLICATION_CREDENTIALS`). `HTTP_PORT` defaults to `8080`; `ALLOWED_ORIGINS` is a comma-separated allowlist of complete origins and may be empty.
 
-Optional controls, with defaults, are documented in `.env.example`: JWT lifetimes; telemetry time/temperature/ADC limits and upload interval; history range, point, online, and SSE heartbeat limits; and alert/outbox polling, batching, and retry limits.
+Optional controls, with defaults, are documented in `.env.example`: Firebase user auto-provisioning and revoked-token checks; telemetry time/temperature/ADC limits and upload interval; history range, point, online, and SSE heartbeat limits; and alert/outbox polling, batching, and retry limits.
 
 ## Local startup
 
@@ -57,21 +57,22 @@ Flyway migrations live in `server/src/main/resources/db/migration`. Server start
 ./gradlew :server:run
 ```
 
-The schema covers users, plants, devices, one-time device claim codes, measurements and latest state, rotating refresh tokens, alert rules/events/processing state, and the reliable notification outbox.
+The schema covers users, plants, devices, one-time device claim codes, measurements and latest state, preserved legacy refresh tokens, Firebase user identities, alert rules/events/processing state, and the reliable notification outbox.
 
 ## API quick start
 
 An IntelliJ HTTP Client collection with health, authentication, plant, claiming, telemetry, history, and alert examples is available at [`api.http`](api.http).
 
-### Login
+### Firebase-authenticated request
+
+The backend does not accept or exchange email/password credentials. Obtain a Firebase ID token from a Firebase client or test tooling, then send it as a bearer token:
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"gardener@example.com","password":"correct-horse-battery-staple"}'
+curl http://localhost:8080/api/v1/auth/me \
+  -H "Authorization: Bearer $FIREBASE_ID_TOKEN"
 ```
 
-The response contains a short-lived bearer access token and a rotating opaque refresh token. Calling `/api/v1/auth/refresh` consumes the old refresh token; replay is rejected.
+The Firebase UID is mapped to an internal UUID; business data continues to reference that UUID. Unknown UIDs are rejected unless `FIREBASE_AUTO_PROVISION_USERS=true`. Existing accounts must be mapped explicitly through `user_identities`, never by email alone.
 
 ### Device telemetry
 
@@ -98,14 +99,14 @@ The device is identified only by the token. Sequences are idempotent per device;
 ## Main endpoints
 
 - Health: `GET /health/live`, `GET /health/ready`
-- Authentication: `POST /api/v1/auth/{register,login,refresh,logout}`
+- Authentication: `GET /api/v1/auth/me` with a Firebase ID token; legacy password/token endpoints return `410 Gone`
 - Plants: CRUD under `/api/v1/plants`
 - Devices: claim, list, update, calibrate, and rotate token under `/api/v1/devices`
 - Telemetry ingestion: `POST /api/device/v1/measurements` and `/batch`
 - Reads: `/api/v1/plants/{plantId}/{latest,history,stream}`; history intervals are `raw`, `5m`, `1h`, and `1d`, and stream is SSE
 - Alerts: rules, history, and acknowledgement under `/api/v1/plants/{plantId}`
 
-All user-owned resources are scoped to the JWT subject. Cross-user lookups return 404 where possible to avoid disclosing resource existence.
+All user-owned resources are scoped to the internal UUID resolved from the Firebase subject. Cross-user lookups return 404 where possible to avoid disclosing resource existence.
 
 ## Tests and verification
 
@@ -115,7 +116,7 @@ All user-owned resources are scoped to the JWT subject. Cross-user lookups retur
 ./gradlew :server:build
 ```
 
-The suite combines pure unit tests, Ktor route tests, and PostgreSQL Testcontainers integration tests. It covers authentication/refresh rotation and ownership boundaries, device authentication, telemetry validation/idempotency/calibration, latest-state ordering and history aggregation, alert duration/deduplication/recovery, migrations, and outbox retry safety.
+The suite combines pure unit tests, Ktor route tests, and PostgreSQL Testcontainers integration tests. It covers Firebase authentication/provisioning and ownership boundaries, device-token authentication, telemetry validation/idempotency/calibration, latest-state ordering and history aggregation, alert duration/deduplication/recovery, migrations, and outbox retry safety.
 
 ## Client applications
 

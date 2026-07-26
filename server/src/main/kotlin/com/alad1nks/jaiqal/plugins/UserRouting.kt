@@ -7,7 +7,7 @@ import com.alad1nks.jaiqal.telemetry.PlantTelemetryService
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.ContentType
 import io.ktor.server.auth.authenticate
-import io.ktor.server.auth.jwt.JWTPrincipal
+import com.alad1nks.jaiqal.auth.UserPrincipal
 import io.ktor.server.auth.principal
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
@@ -25,14 +25,15 @@ import com.alad1nks.jaiqal.alerts.AlertService
 fun Route.userApi(service: UserApplicationService, plantTelemetry: PlantTelemetryService? = null, eventBus: MeasurementEventBus? = null, heartbeatSeconds: Long = 15, alerts: AlertService? = null) {
     route("/api/v1") {
         route("/auth") {
-            post("/register") { call.respond(HttpStatusCode.Created, service.register(call.receive<RegisterRequest>())) }
-            post("/login") { call.respond(service.login(call.receive<LoginRequest>())) }
-            post("/refresh") { call.respond(service.refresh(call.receive<RefreshRequest>())) }
+            post("/register") { call.legacyAuthGone() }
+            post("/login") { call.legacyAuthGone() }
+            post("/refresh") { call.legacyAuthGone() }
+            post("/logout") { call.legacyAuthGone() }
         }
-        authenticate(USER_JWT_AUTH) {
-            post("/auth/logout") {
-                service.logout(call.userId(), call.receive<LogoutRequest>())
-                call.respondText("", status = HttpStatusCode.NoContent)
+        authenticate(FIREBASE_USER_AUTH) {
+            get("/auth/me") {
+                val principal = call.principal<UserPrincipal>()!!
+                call.respond(CurrentUserResponse(principal.userId.toString(), principal.email, principal.emailVerified))
             }
             route("/plants") {
                 get { call.respond(service.listPlants(call.userId())) }
@@ -92,8 +93,11 @@ fun Route.userApi(service: UserApplicationService, plantTelemetry: PlantTelemetr
 }
 
 internal fun io.ktor.server.application.ApplicationCall.userId(): UUID =
-    principal<JWTPrincipal>()?.subject?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+    principal<UserPrincipal>()?.userId
         ?: throw com.alad1nks.jaiqal.users.UserApiException(401, "UNAUTHORIZED", "A valid user token is required")
+
+private suspend fun io.ktor.server.application.ApplicationCall.legacyAuthGone() =
+    respondApiError(HttpStatusCode.Gone, "LEGACY_AUTH_DISABLED", "Password authentication is no longer available")
 
 private fun io.ktor.server.application.ApplicationCall.uuidParameter(name: String): UUID =
     parameters[name]?.let { runCatching { UUID.fromString(it) }.getOrNull() }

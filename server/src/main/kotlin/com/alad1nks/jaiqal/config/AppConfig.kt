@@ -3,7 +3,7 @@ package com.alad1nks.jaiqal.config
 data class AppConfig(
     val httpPort: Int,
     val database: DatabaseConfig,
-    val jwt: JwtConfig,
+    val firebase: FirebaseConfig,
     val allowedOrigins: Set<String>,
     val telemetry: TelemetryConfig = TelemetryConfig(),
     val history: HistoryConfig = HistoryConfig(),
@@ -41,12 +41,10 @@ data class AppConfig(
                     user = required("DATABASE_USER"),
                     password = required("DATABASE_PASSWORD"),
                 ),
-                jwt = JwtConfig(
-                    issuer = required("JWT_ISSUER"),
-                    audience = required("JWT_AUDIENCE"),
-                    secret = required("JWT_SECRET"),
-                    accessTokenSeconds = longValue(environment, "JWT_ACCESS_TOKEN_SECONDS", 900),
-                    refreshTokenSeconds = longValue(environment, "JWT_REFRESH_TOKEN_SECONDS", 2_592_000),
+                firebase = FirebaseConfig(
+                    projectId = required("FIREBASE_PROJECT_ID"),
+                    autoProvisionUsers = booleanValue(environment, "FIREBASE_AUTO_PROVISION_USERS", false),
+                    checkRevokedTokens = booleanValue(environment, "FIREBASE_CHECK_REVOKED_TOKENS", true),
                 ),
                 allowedOrigins = allowedOrigins,
                 telemetry = TelemetryConfig(
@@ -77,6 +75,10 @@ data class AppConfig(
         private fun longValue(env: (String) -> String?, name: String, default: Long) = env(name)?.toLongOrNull() ?: default
         private fun intValue(env: (String) -> String?, name: String, default: Int) = env(name)?.toIntOrNull() ?: default
         private fun doubleValue(env: (String) -> String?, name: String, default: Double) = env(name)?.toDoubleOrNull() ?: default
+        private fun booleanValue(env: (String) -> String?, name: String, default: Boolean): Boolean =
+            env(name)?.trim()?.lowercase()?.let { value ->
+                when (value) { "true" -> true; "false" -> false; else -> error("$name must be true or false") }
+            } ?: default
     }
 }
 
@@ -122,12 +124,8 @@ data class DatabaseConfig(
     val password: String,
 )
 
-data class JwtConfig(
-    val issuer: String,
-    val audience: String,
-    val secret: String,
-    val accessTokenSeconds: Long = 900,
-    val refreshTokenSeconds: Long = 2_592_000,
-) {
-    init { require(accessTokenSeconds > 0 && refreshTokenSeconds > 0) }
-}
+data class FirebaseConfig(
+    val projectId: String,
+    val autoProvisionUsers: Boolean = false,
+    val checkRevokedTokens: Boolean = true,
+) { init { require(projectId.isNotBlank()) { "FIREBASE_PROJECT_ID must not be blank" } } }

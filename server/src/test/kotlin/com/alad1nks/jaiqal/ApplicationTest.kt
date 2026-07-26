@@ -4,9 +4,9 @@ import com.alad1nks.jaiqal.api.contract.ApiErrorResponse
 import com.alad1nks.jaiqal.api.contract.HealthResponse
 import com.alad1nks.jaiqal.config.AppConfig
 import com.alad1nks.jaiqal.config.DatabaseConfig
-import com.alad1nks.jaiqal.config.JwtConfig
+import com.alad1nks.jaiqal.config.FirebaseConfig
 import com.alad1nks.jaiqal.plugins.DEVICE_TOKEN_AUTH
-import com.alad1nks.jaiqal.plugins.USER_JWT_AUTH
+import com.alad1nks.jaiqal.plugins.FIREBASE_USER_AUTH
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -114,11 +114,11 @@ class ApplicationTest {
     }
 
     @Test
-    fun userJwtProviderRejectsMissingTokenWithApiError() = testApplication {
+    fun firebaseProviderRejectsMissingTokenWithApiError() = testApplication {
         application {
             configureApplication(testConfig(), { true })
             routing {
-                authenticate(USER_JWT_AUTH) {
+                authenticate(FIREBASE_USER_AUTH) {
                     get("/testing/user") {
                         call.respond(HttpStatusCode.NoContent)
                     }
@@ -132,6 +132,9 @@ class ApplicationTest {
         assertEquals(HttpStatusCode.Unauthorized, response.status)
         assertEquals("UNAUTHORIZED", error.code)
         assertEquals(response.headers[HttpHeaders.XRequestId], error.requestId)
+
+        val empty = client.get("/testing/user") { header(HttpHeaders.Authorization, "Bearer ") }
+        assertEquals(HttpStatusCode.Unauthorized, empty.status)
     }
 
     @Test
@@ -164,11 +167,7 @@ class ApplicationTest {
             user = "test",
             password = "not-logged",
         ),
-        jwt = JwtConfig(
-            issuer = "jaiqal-test",
-            audience = "jaiqal-test-client",
-            secret = "test-secret-that-is-long-enough-for-hmac",
-        ),
+        firebase = FirebaseConfig("test-project"),
         allowedOrigins = setOf("https://app.example.test"),
     )
 }

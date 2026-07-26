@@ -28,9 +28,9 @@ services:
       DATABASE_URL: jdbc:postgresql://postgres:5432/jaiqal
       DATABASE_USER: ${DATABASE_USER:-jaiqal}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD:-jaiqal-local-password}
-      JWT_ISSUER: ${JWT_ISSUER:-http://localhost:8080}
-      JWT_AUDIENCE: ${JWT_AUDIENCE:-jaiqal-app}
-      JWT_SECRET: ${JWT_SECRET:-local-only-secret-change-before-production-32-chars}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:?Set FIREBASE_PROJECT_ID}
+      FIREBASE_AUTO_PROVISION_USERS: ${FIREBASE_AUTO_PROVISION_USERS:-false}
+      FIREBASE_CHECK_REVOKED_TOKENS: ${FIREBASE_CHECK_REVOKED_TOKENS:-true}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8081}
     depends_on:
       postgres:

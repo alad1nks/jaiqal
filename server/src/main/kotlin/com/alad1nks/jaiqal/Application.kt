@@ -1,6 +1,10 @@
 package com.alad1nks.jaiqal
 
 import com.alad1nks.jaiqal.auth.DeviceTokenAuthenticator
+import com.alad1nks.jaiqal.auth.FirebaseAdminTokenVerifier
+import com.alad1nks.jaiqal.auth.FirebaseIdentityRepository
+import com.alad1nks.jaiqal.auth.FirebaseTokenVerifier
+import com.alad1nks.jaiqal.auth.FirebaseUserAuthenticator
 import com.alad1nks.jaiqal.config.AppConfig
 import com.alad1nks.jaiqal.infrastructure.database.DatabaseReadiness
 import com.alad1nks.jaiqal.infrastructure.database.JdbcDatabaseReadiness
@@ -12,6 +16,7 @@ import com.alad1nks.jaiqal.infrastructure.database.ExposedTelemetryStore
 import com.alad1nks.jaiqal.devices.DeviceRepository
 import com.alad1nks.jaiqal.telemetry.TelemetryIngestionService
 import com.alad1nks.jaiqal.infrastructure.database.JdbcUserApplicationStore
+import com.alad1nks.jaiqal.infrastructure.database.JdbcFirebaseIdentityRepository
 import com.alad1nks.jaiqal.infrastructure.database.JdbcPlantTelemetryRepository
 import com.alad1nks.jaiqal.users.UserApplicationService
 import com.alad1nks.jaiqal.telemetry.MeasurementEventBus
@@ -39,6 +44,7 @@ fun main() {
     val eventBus = MeasurementEventBus()
     val alertService = AlertService(database.dataSource)
     val notificationWorker = NotificationWorker(database.dataSource, LoggingNotificationSender(), config.alerts)
+    val firebaseVerifier = FirebaseAdminTokenVerifier.initialize(config.firebase.projectId, config.firebase.checkRevokedTokens)
     Runtime.getRuntime().addShutdownHook(Thread(database::close))
     embeddedServer(
         factory = Netty,
@@ -50,11 +56,13 @@ fun main() {
             ExposedDeviceTokenAuthenticator(database.database),
             ExposedDeviceRepository(database.database),
             TelemetryIngestionService(ExposedTelemetryStore(database.database), config.telemetry, eventBus),
-            UserApplicationService(JdbcUserApplicationStore(database.dataSource), config.jwt),
+            UserApplicationService(JdbcUserApplicationStore(database.dataSource)),
             PlantTelemetryService(JdbcPlantTelemetryRepository(database.dataSource), config.history),
             eventBus,
             alertService,
             notificationWorker,
+            firebaseVerifier,
+            JdbcFirebaseIdentityRepository(database.dataSource),
         )
     }.start(wait = true)
 }
@@ -70,10 +78,15 @@ fun Application.configureApplication(
     eventBus: MeasurementEventBus? = null,
     alertService: AlertService? = null,
     notificationWorker: NotificationWorker? = null,
+    firebaseTokenVerifier: FirebaseTokenVerifier = FirebaseTokenVerifier { error("Firebase verifier is not configured") },
+    firebaseIdentityRepository: FirebaseIdentityRepository = FirebaseIdentityRepository { _, _ -> null },
 ) {
     configureMonitoring()
     configureHttp(config)
-    configureAuthentication(config.jwt, deviceTokenAuthenticator)
+    configureAuthentication(
+        FirebaseUserAuthenticator(firebaseTokenVerifier, firebaseIdentityRepository, config.firebase.autoProvisionUsers),
+        deviceTokenAuthenticator,
+    )
     configureRouting(databaseReadiness, deviceRepository, telemetry, userApplication, plantTelemetry, eventBus, config.history.heartbeatSeconds, alertService)
     if (alertService != null) {
         eventBus?.let { bus -> launch(Dispatchers.IO) { bus.updates.collect { event -> event.plantId?.let(alertService::evaluatePlant) } } }
