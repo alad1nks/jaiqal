@@ -4,6 +4,7 @@ import com.alad1nks.jaiqal.api.contract.ApiErrorResponse
 import com.alad1nks.jaiqal.core.auth.AuthProvider
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.header
@@ -36,6 +37,11 @@ class SessionExpiredException : Exception("The session has expired")
 
 fun createHttpClient() = HttpClient {
     expectSuccess = false
+    install(HttpTimeout) {
+        connectTimeoutMillis = 15_000
+        requestTimeoutMillis = 30_000
+        socketTimeoutMillis = 30_000
+    }
     install(ContentNegotiation) {
         json(Json { ignoreUnknownKeys = true; explicitNulls = false })
     }
@@ -50,11 +56,20 @@ class AuthenticatedRequestExecutor(
     @PublishedApi internal val refreshMutex = Mutex()
 
     suspend inline fun <reified T> execute(noinline block: HttpRequestBuilder.() -> Unit): T {
-        var token = auth.getIdToken() ?: throw SessionExpiredException()
+        val token = auth.getIdToken() ?: throw SessionExpiredException()
         var response = client.request(config.baseUrl, request(token, block))
         if (response.status == HttpStatusCode.Unauthorized) {
-            token = refreshMutex.withLock { auth.getIdToken(forceRefresh = true) } ?: throw SessionExpiredException()
-            response = client.request(config.baseUrl, request(token, block))
+            val retryToken = refreshMutex.withLock {
+                // Another request may have refreshed while this request was waiting for the
+                // mutex. Reuse that token rather than starting a second Firebase refresh.
+                val currentToken = auth.getIdToken()
+                if (currentToken != null && currentToken != token) {
+                    currentToken
+                } else {
+                    auth.getIdToken(forceRefresh = true)
+                }
+            } ?: throw SessionExpiredException()
+            response = client.request(config.baseUrl, request(retryToken, block))
         }
         if (response.status.value !in 200..299) {
             val error = runCatching { response.body<ApiErrorResponse>() }.getOrNull()

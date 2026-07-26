@@ -85,6 +85,30 @@ Compile shared Apple code on macOS with
   type-safe navigation/deep links, SSE lifecycle integration, and native Firebase
   adapters remain implementation work; no fake production data is supplied.
 
+## Implementation audit against `task.md`
+
+The current frontend is an early scaffold, not the production-ready client from
+the definition of done. This explicit inventory prevents interfaces and placeholder
+UI from being mistaken for completed integrations.
+
+| Area | Implemented now | Remaining work |
+| --- | --- | --- |
+| Shared application shell | Android, iOS, desktop and web hosts render `app/shared`; shared Material navigation, empty states, theme toggle and `kk`/`ru`/`en` resources exist. | Splash/auth graphs, type-safe navigation, deep links, persisted system/light/dark theme, language selection, full design system, and accessibility/UI tests. |
+| Firebase authentication | Common `AuthProvider`, auth states and basic credential validation. | Official Android and Apple adapters and configuration, login/register/reset/verification screens, session-driven root navigation, `/auth/me` bootstrap, logout cleanup and native tests. |
+| Networking | Ktor engines, JSON, bounded timeouts, injected environment URL, bearer attachment, safe API-error mapping and one 401 retry. Concurrent 401s share one forced Firebase refresh. | Feature remote data sources, connectivity/session UX, lifecycle integration and production URL/build-flavor wiring. |
+| Offline data | Repository boundary and documented sync policy only. | SQLDelight plugin/schema/migrations, account-partitioned cache, local data sources, cache-first/network-first policies and logout deletion. |
+| Plants and telemetry | Domain mappings, history-range-to-server-interval mapping and a plants empty state. | List/create/edit/details screens and repositories, charts, missing/stale metric presentation, pull-to-refresh, SSE parsing/reconnect/cache updates. |
+| Devices | Calibration steps and ADC validation boundary. | Claim/details UI and repository, complete calibration wizard and error/retry handling. The ESP32 device token must remain absent. |
+| Alerts and settings | Bottom-level placeholders and localized labels. | Alert history/acknowledgement/rules flows, account settings, locale-aware formatting, privacy/version information and debug diagnostics. |
+| Push and crash reporting | `PushTokenRegistrar` boundary and documented blockers. | Push remains blocked on a backend registration endpoint. Crashlytics and all Apple/Firebase owner configuration remain native/CI work. |
+| Verification | Small common logic suite and authenticated-request integration tests using Ktor MockEngine/fake auth. | Repository/cache/SSE/ViewModel/UI/native Firebase tests, Android lint/release checks and macOS iOS/Xcode verification. |
+
+The next implementation milestone should be native Firebase Auth plus the shared
+authentication screens and `/api/v1/auth/me` bootstrap. It unlocks every protected
+feature without introducing a fake production session. SQLDelight and the plants
+vertical slice should follow; feature screens must not be connected to placeholder
+data in production.
+
 ## Architecture decisions
 
 1. Firebase Auth owns the client session instead of application JWTs.
