@@ -2,17 +2,26 @@ package com.alad1nks.jaiqal.plugins
 
 import com.alad1nks.jaiqal.api.contract.*
 import com.alad1nks.jaiqal.users.UserApplicationService
+import com.alad1nks.jaiqal.telemetry.MeasurementEventBus
+import com.alad1nks.jaiqal.telemetry.PlantTelemetryService
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.ContentType
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.principal
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
+import io.ktor.server.response.respondTextWriter
 import io.ktor.server.routing.*
 import java.util.UUID
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import com.alad1nks.jaiqal.api.contract.PlantTelemetryUpdate
 
-fun Route.userApi(service: UserApplicationService) {
+fun Route.userApi(service: UserApplicationService, plantTelemetry: PlantTelemetryService? = null, eventBus: MeasurementEventBus? = null, heartbeatSeconds: Long = 15) {
     route("/api/v1") {
         route("/auth") {
             post("/register") { call.respond(HttpStatusCode.Created, service.register(call.receive<RegisterRequest>())) }
@@ -29,6 +38,30 @@ fun Route.userApi(service: UserApplicationService) {
                 post { call.respond(HttpStatusCode.Created, service.createPlant(call.userId(), call.receive<CreatePlantRequest>())) }
                 route("/{plantId}") {
                     get { call.respond(service.getPlant(call.userId(), call.uuidParameter("plantId"))) }
+                    if (plantTelemetry != null) {
+                        get("/latest") { call.respond(plantTelemetry.latest(call.userId(), call.uuidParameter("plantId"))) }
+                        get("/history") {
+                            call.respond(plantTelemetry.history(call.userId(), call.uuidParameter("plantId"), call.request.queryParameters["from"], call.request.queryParameters["to"], call.request.queryParameters["interval"]))
+                        }
+                        if (eventBus != null) get("/stream") {
+                            val userId = call.userId()
+                            val plantId = call.uuidParameter("plantId")
+                            plantTelemetry.requireOwnership(userId, plantId)
+                            call.respondTextWriter(ContentType.Text.EventStream) {
+                                write(": connected\n\n"); flush()
+                                while (true) {
+                                    val event = withTimeoutOrNull(heartbeatSeconds * 1_000) {
+                                        eventBus.updates.first { it.plantId == plantId }
+                                    }
+                                    if (event == null) write(": heartbeat\n\n") else {
+                                        val update = PlantTelemetryUpdate(plantId.toString(), event.measurement.measurement.deviceId.toString(), event.measurement.id)
+                                        write("event: measurement\ndata: ${Json.encodeToString(update)}\n\n")
+                                    }
+                                    flush()
+                                }
+                            }
+                        }
+                    }
                     patch { call.respond(service.updatePlant(call.userId(), call.uuidParameter("plantId"), call.receive<UpdatePlantRequest>())) }
                     delete { service.archivePlant(call.userId(), call.uuidParameter("plantId")); call.respondText("", status = HttpStatusCode.NoContent) }
                 }
@@ -47,7 +80,7 @@ fun Route.userApi(service: UserApplicationService) {
     }
 }
 
-private fun io.ktor.server.application.ApplicationCall.userId(): UUID =
+internal fun io.ktor.server.application.ApplicationCall.userId(): UUID =
     principal<JWTPrincipal>()?.subject?.let { runCatching { UUID.fromString(it) }.getOrNull() }
         ?: throw com.alad1nks.jaiqal.users.UserApiException(401, "UNAUTHORIZED", "A valid user token is required")
 

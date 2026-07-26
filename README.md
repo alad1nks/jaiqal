@@ -57,6 +57,11 @@ TELEMETRY_MAX_TEMPERATURE_CELSIUS=100
 TELEMETRY_MIN_ADC=0
 TELEMETRY_MAX_ADC=65535
 TELEMETRY_NEXT_UPLOAD_SECONDS=60
+HISTORY_MAX_RANGE_SECONDS=31536000
+HISTORY_DEFAULT_RANGE_SECONDS=86400
+HISTORY_MAX_POINTS=2000
+DEVICE_ONLINE_WINDOW_SECONDS=180
+SSE_HEARTBEAT_SECONDS=15
 ```
 
 With the variables exported, start the server with `./gradlew :server:run`.
@@ -123,6 +128,18 @@ The command prints the raw device token and claim code exactly for provisioning;
 the database stores only their SHA-256 hashes. Claim the device by sending the
 code and an owned plant ID to `POST /api/v1/devices/claim`. Rotating a device
 token immediately invalidates the previous token.
+
+### Plant telemetry reads and realtime updates
+
+Authenticated clients can read the indexed latest state at
+`GET /api/v1/plants/{plantId}/latest`. History is available at
+`GET /api/v1/plants/{plantId}/history` with ISO-8601 `from`/`to` parameters and
+an `interval` of `raw`, `5m`, `1h`, or `1d`. Bucketed values are averaged in
+PostgreSQL and every query is constrained by configured range and point limits.
+
+`GET /api/v1/plants/{plantId}/stream` is an authenticated Server-Sent Events
+notification stream. Measurement events tell clients to refresh REST state;
+heartbeat comments keep idle connections alive.
 
 ---
 

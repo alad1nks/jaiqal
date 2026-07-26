@@ -17,7 +17,7 @@ fun interface TelemetryStore {
     fun ingest(device: DeviceRecord, measurements: List<PreparedMeasurement>): List<IngestionResult>
 }
 
-data class MeasurementReceived(val measurement: MeasurementRecord)
+data class MeasurementReceived(val plantId: UUID?, val measurement: MeasurementRecord)
 fun interface MeasurementEventPublisher {
     fun publish(event: MeasurementReceived)
     companion object { fun noop() = MeasurementEventPublisher { } }
@@ -36,7 +36,7 @@ class TelemetryIngestionService(
         val now = OffsetDateTime.now(clock)
         val prepared = requests.map { prepare(device, it, now) }
         val results = store.ingest(device, prepared)
-        results.mapNotNull(IngestionResult::measurement).forEach { publisher.publish(MeasurementReceived(it)) }
+        results.mapNotNull(IngestionResult::measurement).forEach { publisher.publish(MeasurementReceived(device.plantId, it)) }
         return results.map {
             DeviceMeasurementResponse(true, it.duplicate, now.toApiInstant(), config.nextUploadSeconds)
         }
