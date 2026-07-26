@@ -1,17 +1,12 @@
 package com.alad1nks.jaiqal.users
 
 import com.alad1nks.jaiqal.api.contract.*
-import com.alad1nks.jaiqal.config.JwtConfig
 import com.alad1nks.jaiqal.devices.DeviceRecord
 import com.alad1nks.jaiqal.infrastructure.database.DeviceTokens
 import com.alad1nks.jaiqal.plants.PlantRecord
-import com.auth0.jwt.JWT
-import com.auth0.jwt.algorithms.Algorithm
-import de.mkammerer.argon2.Argon2Factory
 import java.security.SecureRandom
 import java.time.Clock
 import java.time.OffsetDateTime
-import java.util.Date
 import java.util.UUID
 
 data class SessionRecord(val id: UUID, val user: UserRecord, val tokenHash: String, val expiresAt: OffsetDateTime)
@@ -35,48 +30,11 @@ interface UserApplicationStore {
     fun rotateDeviceToken(userId: UUID, deviceId: UUID, tokenHash: String): DeviceRecord?
 }
 
-class PasswordHasher {
-    fun hash(password: String): String = Argon2Factory.create(Argon2Factory.Argon2Types.ARGON2id)
-        .hash(3, 65_536, 1, password.toCharArray())
-    fun verify(hash: String, password: String): Boolean = runCatching {
-        Argon2Factory.create(Argon2Factory.Argon2Types.ARGON2id).verify(hash, password.toCharArray())
-    }.getOrDefault(false)
-}
-
 class UserApplicationService(
     private val store: UserApplicationStore,
-    private val jwt: JwtConfig,
-    private val passwordHasher: PasswordHasher = PasswordHasher(),
     private val clock: Clock = Clock.systemUTC(),
     private val random: SecureRandom = SecureRandom(),
 ) {
-    fun register(request: RegisterRequest): AuthResponse {
-        val email = normalizeEmail(request.email)
-        validatePassword(request.password)
-        val now = now()
-        val user = UserRecord(UUID.randomUUID(), email, passwordHasher.hash(request.password), now)
-        if (!store.createUser(user)) conflict("EMAIL_ALREADY_REGISTERED", "An account with this email already exists")
-        return issueSession(user)
-    }
-
-    fun login(request: LoginRequest): AuthResponse {
-        val user = store.findUserByEmail(normalizeEmail(request.email))
-        if (user == null || !passwordHasher.verify(user.passwordHash, request.password)) unauthorized("INVALID_CREDENTIALS", "Email or password is invalid")
-        return issueSession(user)
-    }
-
-    fun refresh(request: RefreshRequest): AuthResponse {
-        val token = newToken()
-        val replacement = SessionRecord(UUID.randomUUID(), placeholderUser, tokenHash(token), now().plusSeconds(jwt.refreshTokenSeconds))
-        val user = store.rotateSession(tokenHash(request.refreshToken), replacement)
-            ?: unauthorized("INVALID_REFRESH_TOKEN", "Refresh token is invalid or has already been used")
-        return authResponse(user, token)
-    }
-
-    fun logout(userId: UUID, request: LogoutRequest) {
-        if (!store.revokeSession(tokenHash(request.refreshToken), userId)) unauthorized("INVALID_REFRESH_TOKEN", "Refresh token is invalid")
-    }
-
     fun listPlants(userId: UUID) = store.listPlants(userId).map(::plantResponse)
     fun getPlant(userId: UUID, id: UUID) = store.findPlant(userId, id)?.let(::plantResponse) ?: notFound()
     fun createPlant(userId: UUID, request: CreatePlantRequest): PlantResponse {
@@ -114,33 +72,16 @@ class UserApplicationService(
         return RotateDeviceTokenResponse(deviceResponse(device), raw)
     }
 
-    private fun issueSession(user: UserRecord): AuthResponse {
-        val raw = newToken()
-        store.createSession(SessionRecord(UUID.randomUUID(), user, tokenHash(raw), now().plusSeconds(jwt.refreshTokenSeconds)))
-        return authResponse(user, raw)
-    }
-    private fun authResponse(user: UserRecord, refresh: String): AuthResponse {
-        val issued = now()
-        val access = JWT.create().withIssuer(jwt.issuer).withAudience(jwt.audience).withSubject(user.id.toString())
-            .withIssuedAt(Date.from(issued.toInstant())).withExpiresAt(Date.from(issued.plusSeconds(jwt.accessTokenSeconds).toInstant()))
-            .sign(Algorithm.HMAC256(jwt.secret))
-        return AuthResponse(UserResponse(user.id.toString(), user.email), access, refresh, jwt.accessTokenSeconds)
-    }
     private fun newToken() = ByteArray(32).also(random::nextBytes).joinToString("") { "%02x".format(it) }
     private fun tokenHash(value: String) = DeviceTokens.hashHex(value)
     private fun now() = OffsetDateTime.now(clock)
-    private fun normalizeEmail(value: String) = value.trim().lowercase().also { if (!it.matches(Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"))) bad("INVALID_EMAIL", "Email address is invalid") }
-    private fun validatePassword(value: String) { if (value.length !in 10..1024) bad("INVALID_PASSWORD", "Password must contain at least 10 characters") }
     private fun requiredName(value: String) = value.trim().also { if (it.isEmpty() || it.length > 255) bad("INVALID_NAME", "Name must contain between 1 and 255 characters") }
     private fun clean(value: String?) = value?.trim()?.takeIf(String::isNotEmpty)
     private fun uuid(value: String) = runCatching { UUID.fromString(value) }.getOrElse { bad("INVALID_ID", "Identifier is invalid") }
     private fun plantResponse(v: PlantRecord) = PlantResponse(v.id.toString(), v.name, v.species, v.imageUrl, v.createdAt.toString())
     private fun deviceResponse(v: DeviceRecord) = DeviceResponse(v.id.toString(), v.plantId?.toString(), v.name, v.firmwareVersion, v.lastSeenAt?.toString(), v.soilDryRaw, v.soilWetRaw)
     private fun bad(code: String, message: String): Nothing = throw UserApiException(400, code, message)
-    private fun unauthorized(code: String, message: String): Nothing = throw UserApiException(401, code, message)
-    private fun conflict(code: String, message: String): Nothing = throw UserApiException(409, code, message)
     private fun notFound(): Nothing = throw UserApiException(404, "NOT_FOUND", "Resource was not found")
-    private val placeholderUser = UserRecord(UUID(0, 0), "", "", OffsetDateTime.MIN)
 }
 
 class UserApiException(val status: Int, val code: String, override val message: String) : RuntimeException(message)

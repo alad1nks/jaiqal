@@ -1,7 +1,7 @@
 package com.alad1nks.jaiqal.users
 
 import com.alad1nks.jaiqal.api.contract.*
-import com.alad1nks.jaiqal.config.JwtConfig
+import com.alad1nks.jaiqal.config.FirebaseConfig
 import com.alad1nks.jaiqal.devices.DeviceRecord
 import com.alad1nks.jaiqal.plants.PlantRecord
 import org.junit.Test
@@ -21,19 +21,6 @@ import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 
 class UserApplicationTest {
-    @Test fun `registration normalizes email hashes password and refresh rotates once`() {
-        val store = MemoryStore()
-        val service = service(store)
-        val auth = service.register(RegisterRequest("  USER@Example.COM ", "correct horse battery"))
-        assertEquals("user@example.com", auth.user.email)
-        assertFalse(store.users.single().passwordHash.contains("correct horse battery"))
-
-        val rotated = service.refresh(RefreshRequest(auth.refreshToken))
-        assertNotEquals(auth.refreshToken, rotated.refreshToken)
-        val replay = assertFailsWith<UserApiException> { service.refresh(RefreshRequest(auth.refreshToken)) }
-        assertEquals("INVALID_REFRESH_TOKEN", replay.code)
-    }
-
     @Test fun `plant and device lookups hide another users resources`() {
         val store = MemoryStore()
         val service = service(store)
@@ -59,22 +46,30 @@ class UserApplicationTest {
         assertTrue(rotated.token.length >= 64)
     }
 
-    @Test fun `auth and plant routes require and honor JWT ownership`() = testApplication {
-        val store = MemoryStore(); val config = AppConfig(8080, DatabaseConfig("jdbc:none","x","x"), JwtConfig("issuer","audience","a-long-test-secret",60,600), emptySet())
-        val service = UserApplicationService(store, config.jwt)
-        application { configureApplication(config, { true }, userApplication = service) }
-        val registration = client.post("/api/v1/auth/register") { contentType(ContentType.Application.Json); setBody("""{"email":"route@example.com","password":"correct horse battery"}""") }
-        assertEquals(HttpStatusCode.Created, registration.status)
-        val auth = Json.decodeFromString<AuthResponse>(registration.bodyAsText())
+    @Test fun `firebase auth route exposes principal and preserves ownership`() = testApplication {
+        val store = MemoryStore()
+        val userId = UUID.randomUUID()
+        val config = AppConfig(8080, DatabaseConfig("jdbc:none", "x", "x"), FirebaseConfig("test-project"), emptySet())
+        application {
+            configureApplication(
+                config, { true }, userApplication = UserApplicationService(store),
+                firebaseTokenVerifier = com.alad1nks.jaiqal.auth.FirebaseTokenVerifier {
+                    if (it != "valid") error("invalid")
+                    com.alad1nks.jaiqal.auth.VerifiedFirebaseToken("firebase-uid", "route@example.com", true)
+                },
+                firebaseIdentityRepository = com.alad1nks.jaiqal.auth.FirebaseIdentityRepository { _, _ -> userId },
+            )
+        }
+        assertEquals(HttpStatusCode.Gone, client.post("/api/v1/auth/login").status)
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/plants").status)
-        val created = client.post("/api/v1/plants") { bearerAuth(auth.accessToken);contentType(ContentType.Application.Json);setBody("""{"name":"Aloe"}""") }
+        val me = client.get("/api/v1/auth/me") { bearerAuth("valid") }
+        assertEquals(HttpStatusCode.OK, me.status)
+        assertTrue(me.bodyAsText().contains(userId.toString()))
+        val created = client.post("/api/v1/plants") { bearerAuth("valid"); contentType(ContentType.Application.Json); setBody("""{"name":"Aloe"}""") }
         assertEquals(HttpStatusCode.Created, created.status)
-        val plant = Json.decodeFromString<PlantResponse>(created.bodyAsText())
-        assertEquals("Aloe", plant.name)
-        assertEquals(HttpStatusCode.OK, client.get("/api/v1/plants/${plant.id}") { bearerAuth(auth.accessToken) }.status)
     }
 
-    private fun service(store: MemoryStore) = UserApplicationService(store, JwtConfig("issuer", "audience", "a-long-test-secret", 60, 600), clock = clock)
+    private fun service(store: MemoryStore) = UserApplicationService(store, clock = clock)
     private val clock = Clock.fixed(Instant.parse("2026-07-26T12:00:00Z"), ZoneOffset.UTC)
 }
 

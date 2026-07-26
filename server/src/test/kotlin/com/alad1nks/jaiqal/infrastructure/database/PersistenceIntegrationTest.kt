@@ -7,6 +7,10 @@ import com.alad1nks.jaiqal.telemetry.NewMeasurement
 import com.alad1nks.jaiqal.telemetry.HistoryRequest
 import com.alad1nks.jaiqal.api.contract.HistoryInterval
 import com.alad1nks.jaiqal.users.UserRecord
+import com.alad1nks.jaiqal.auth.VerifiedFirebaseToken
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.runBlocking
 import org.flywaydb.core.Flyway
 import org.junit.AfterClass
 import org.junit.BeforeClass
@@ -31,13 +35,25 @@ class PersistenceIntegrationTest {
         infrastructure.dataSource.connection.use { connection ->
             val expected = setOf(
                 "users", "plants", "devices", "measurements", "device_latest_state",
-                "refresh_tokens", "alert_rules", "alert_events", "notification_outbox", "device_claim_codes",
+                "refresh_tokens", "user_identities", "alert_rules", "alert_events", "notification_outbox", "device_claim_codes",
             )
             connection.metaData.getTables(null, "public", "%", arrayOf("TABLE")).use { rows ->
                 val actual = buildSet { while (rows.next()) add(rows.getString("TABLE_NAME")) }
                 assertEquals(emptySet(), expected - actual)
             }
         }
+    }
+
+    @Test
+    fun `firebase identity provisioning is idempotent under concurrent first requests`() = runBlocking {
+        val repository = JdbcFirebaseIdentityRepository(infrastructure.dataSource)
+        val token = VerifiedFirebaseToken("concurrent-firebase-uid-${UUID.randomUUID()}", null, false)
+
+        assertNull(repository.resolve(token, autoProvision = false))
+        val userIds = List(8) { async { repository.resolve(token, autoProvision = true) } }.awaitAll()
+
+        assertEquals(1, userIds.filterNotNull().toSet().size)
+        assertEquals(userIds.first(), repository.resolve(token, autoProvision = false))
     }
 
     @Test
