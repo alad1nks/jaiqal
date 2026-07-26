@@ -3,9 +3,6 @@
 Before changing code, read `README.md`, `task.md`, and the relevant implementation
 and tests. Preserve unrelated work.
 
-For backend authentication changes, also read
-`docs/firebase-auth-migration.md` before editing code or configuration.
-
 ## Project-specific constraints
 
 - Treat `app/shared` as the existing equivalent of `app:composeApp`; do not create

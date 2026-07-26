@@ -72,7 +72,7 @@ curl http://localhost:8080/api/v1/auth/me \
   -H "Authorization: Bearer $FIREBASE_ID_TOKEN"
 ```
 
-The Firebase UID is mapped to an internal UUID; business data continues to reference that UUID. Unknown UIDs are rejected unless `FIREBASE_AUTO_PROVISION_USERS=true`. See [`docs/firebase-auth-migration.md`](docs/firebase-auth-migration.md) for credentials, existing-account mapping, Docker, and rollout instructions.
+The Firebase UID is mapped to an internal UUID; business data continues to reference that UUID. Unknown UIDs are rejected unless `FIREBASE_AUTO_PROVISION_USERS=true`. Existing accounts must be mapped explicitly through `user_identities`, never by email alone.
 
 ### Device telemetry
 
