@@ -53,6 +53,20 @@ With the variables exported, start the server with `./gradlew :server:run`.
 The liveness endpoint is `/health/live`; `/health/ready` additionally checks that
 PostgreSQL accepts a `SELECT 1` query.
 
+At server startup, HikariCP creates the PostgreSQL connection pool and Flyway
+applies pending migrations from `server/src/main/resources/db/migration`. Flyway
+records applied versions in `flyway_schema_history`, so restarting against an
+up-to-date database is safe. Persistence adapters use Exposed and keep its table
+types inside the `infrastructure.database` package; feature code depends on the
+repository interfaces instead.
+
+Repository and migration integration tests run against an ephemeral PostgreSQL
+Testcontainer and therefore require a working Docker-compatible container runtime:
+
+```shell
+./gradlew :server:test
+```
+
 ---
 
 Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html),
