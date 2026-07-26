@@ -141,6 +141,22 @@ PostgreSQL and every query is constrained by configured range and point limits.
 notification stream. Measurement events tell clients to refresh REST state;
 heartbeat comments keep idle connections alive.
 
+### Alerts and notifications
+
+Alert rules are managed at `GET/PUT /api/v1/plants/{plantId}/alert-rules`; alert
+history and acknowledgement use `GET /api/v1/plants/{plantId}/alerts` and
+`POST /api/v1/plants/{plantId}/alerts/{alertId}/acknowledge`. Rules support low
+soil moisture, high/low temperature, and device-offline thresholds with separate
+trigger and recovery durations. Evaluation state is persisted, so a transient
+sample does not create an alert and active alerts are deduplicated.
+
+Alert transitions and their notification outbox rows are committed together.
+The built-in development sender logs deliveries and needs no FCM/APNs credentials;
+production push providers can implement `NotificationSender`. Worker polling,
+batch size, retry backoff, and alert evaluation frequency can be configured with
+`NOTIFICATION_OUTBOX_POLL_SECONDS`, `NOTIFICATION_OUTBOX_BATCH_SIZE`,
+`NOTIFICATION_OUTBOX_MAX_BACKOFF_SECONDS`, and `ALERT_EVALUATION_SECONDS`.
+
 ---
 
 Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html),

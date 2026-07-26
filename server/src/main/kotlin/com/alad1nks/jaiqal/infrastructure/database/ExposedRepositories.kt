@@ -1,13 +1,9 @@
 package com.alad1nks.jaiqal.infrastructure.database
 
-import com.alad1nks.jaiqal.alerts.AlertRuleRecord
-import com.alad1nks.jaiqal.alerts.AlertRuleRepository
 import com.alad1nks.jaiqal.auth.RefreshTokenRecord
 import com.alad1nks.jaiqal.auth.RefreshTokenRepository
 import com.alad1nks.jaiqal.devices.DeviceRecord
 import com.alad1nks.jaiqal.devices.DeviceRepository
-import com.alad1nks.jaiqal.notifications.NotificationOutboxRecord
-import com.alad1nks.jaiqal.notifications.NotificationOutboxRepository
 import com.alad1nks.jaiqal.plants.PlantRecord
 import com.alad1nks.jaiqal.plants.PlantRepository
 import com.alad1nks.jaiqal.telemetry.LatestDeviceState
@@ -87,30 +83,13 @@ class ExposedRefreshTokenRepository(private val database: Database) : RefreshTok
     override fun findByHash(tokenHash: String) = transaction(database) { RefreshTokensTable.selectAll().where { RefreshTokensTable.tokenHash eq tokenHash }.singleOrNull()?.toRefreshToken() }
 }
 
-class ExposedAlertRuleRepository(private val database: Database) : AlertRuleRepository {
-    override fun create(rule: AlertRuleRecord) = transaction(database) { AlertRulesTable.insert { it.from(rule) }; rule }
-    override fun findByPlantId(plantId: UUID) = transaction(database) { AlertRulesTable.selectAll().where { AlertRulesTable.plantId eq plantId }.map(ResultRow::toAlertRule) }
-}
-
-class ExposedNotificationOutboxRepository(private val database: Database) : NotificationOutboxRepository {
-    override fun enqueue(notification: NotificationOutboxRecord) = transaction(database) {
-        val id = NotificationOutboxTable.insert {
-            it[NotificationOutboxTable.alertEventId] = notification.alertEventId; it[NotificationOutboxTable.channel] = notification.channel
-            it[NotificationOutboxTable.payload] = Json.parseToJsonElement(notification.payload); it[NotificationOutboxTable.status] = notification.status
-            it[NotificationOutboxTable.attempts] = notification.attempts; it[NotificationOutboxTable.availableAt] = notification.availableAt; it[NotificationOutboxTable.createdAt] = notification.createdAt
-        }[NotificationOutboxTable.id]
-        notification.copy(id = id)
-    }
-}
 
 private fun org.jetbrains.exposed.v1.core.statements.UpdateBuilder<*>.from(v: UserRecord) { this[UsersTable.id]=v.id; this[UsersTable.email]=v.email; this[UsersTable.passwordHash]=v.passwordHash; this[UsersTable.createdAt]=v.createdAt }
 private fun org.jetbrains.exposed.v1.core.statements.UpdateBuilder<*>.from(v: PlantRecord) { this[PlantsTable.id]=v.id; this[PlantsTable.userId]=v.userId; this[PlantsTable.name]=v.name; this[PlantsTable.species]=v.species; this[PlantsTable.imageUrl]=v.imageUrl; this[PlantsTable.createdAt]=v.createdAt; this[PlantsTable.archivedAt]=v.archivedAt }
 private fun org.jetbrains.exposed.v1.core.statements.UpdateBuilder<*>.from(v: DeviceRecord) { this[DevicesTable.id]=v.id; this[DevicesTable.plantId]=v.plantId; this[DevicesTable.name]=v.name; this[DevicesTable.tokenHash]=v.tokenHash; this[DevicesTable.firmwareVersion]=v.firmwareVersion; this[DevicesTable.lastSeenAt]=v.lastSeenAt; this[DevicesTable.soilDryRaw]=v.soilDryRaw; this[DevicesTable.soilWetRaw]=v.soilWetRaw; this[DevicesTable.disabledAt]=v.disabledAt; this[DevicesTable.createdAt]=v.createdAt }
 private fun org.jetbrains.exposed.v1.core.statements.UpdateBuilder<*>.from(v: RefreshTokenRecord) { this[RefreshTokensTable.id]=v.id; this[RefreshTokensTable.userId]=v.userId; this[RefreshTokensTable.tokenHash]=v.tokenHash; this[RefreshTokensTable.expiresAt]=v.expiresAt; this[RefreshTokensTable.createdAt]=v.createdAt; this[RefreshTokensTable.revokedAt]=v.revokedAt; this[RefreshTokensTable.replacedById]=v.replacedById }
-private fun org.jetbrains.exposed.v1.core.statements.UpdateBuilder<*>.from(v: AlertRuleRecord) { this[AlertRulesTable.id]=v.id; this[AlertRulesTable.plantId]=v.plantId; this[AlertRulesTable.type]=v.type; this[AlertRulesTable.threshold]=v.threshold; this[AlertRulesTable.requiredDurationSeconds]=v.requiredDurationSeconds; this[AlertRulesTable.recoveryDurationSeconds]=v.recoveryDurationSeconds; this[AlertRulesTable.enabled]=v.enabled; this[AlertRulesTable.createdAt]=v.createdAt; this[AlertRulesTable.updatedAt]=v.updatedAt }
 private fun ResultRow.toUser() = UserRecord(this[UsersTable.id],this[UsersTable.email],this[UsersTable.passwordHash],this[UsersTable.createdAt])
 private fun ResultRow.toPlant() = PlantRecord(this[PlantsTable.id],this[PlantsTable.userId],this[PlantsTable.name],this[PlantsTable.species],this[PlantsTable.imageUrl],this[PlantsTable.createdAt],this[PlantsTable.archivedAt])
 private fun ResultRow.toDevice() = DeviceRecord(this[DevicesTable.id],this[DevicesTable.plantId],this[DevicesTable.name],this[DevicesTable.tokenHash],this[DevicesTable.firmwareVersion],this[DevicesTable.lastSeenAt],this[DevicesTable.soilDryRaw],this[DevicesTable.soilWetRaw],this[DevicesTable.disabledAt],this[DevicesTable.createdAt])
 private fun ResultRow.toMeasurement(): MeasurementRecord { val m=NewMeasurement(this[MeasurementsTable.deviceId],this[MeasurementsTable.sequence],this[MeasurementsTable.measuredAt],this[MeasurementsTable.receivedAt],this[MeasurementsTable.soilMoistureRaw],this[MeasurementsTable.soilMoisturePercent],this[MeasurementsTable.airTemperatureCelsius],this[MeasurementsTable.airHumidityPercent],this[MeasurementsTable.lightRaw],this[MeasurementsTable.extra].toString()); return MeasurementRecord(this[MeasurementsTable.id],m) }
 private fun ResultRow.toRefreshToken() = RefreshTokenRecord(this[RefreshTokensTable.id],this[RefreshTokensTable.userId],this[RefreshTokensTable.tokenHash],this[RefreshTokensTable.expiresAt],this[RefreshTokensTable.createdAt],this[RefreshTokensTable.revokedAt],this[RefreshTokensTable.replacedById])
-private fun ResultRow.toAlertRule() = AlertRuleRecord(this[AlertRulesTable.id],this[AlertRulesTable.plantId],this[AlertRulesTable.type],this[AlertRulesTable.threshold],this[AlertRulesTable.requiredDurationSeconds],this[AlertRulesTable.recoveryDurationSeconds],this[AlertRulesTable.enabled],this[AlertRulesTable.createdAt],this[AlertRulesTable.updatedAt])

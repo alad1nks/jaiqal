@@ -7,6 +7,7 @@ data class AppConfig(
     val allowedOrigins: Set<String>,
     val telemetry: TelemetryConfig = TelemetryConfig(),
     val history: HistoryConfig = HistoryConfig(),
+    val alerts: AlertConfig = AlertConfig(),
 ) {
     companion object {
         fun fromEnvironment(
@@ -64,6 +65,12 @@ data class AppConfig(
                     onlineWindowSeconds = longValue(environment, "DEVICE_ONLINE_WINDOW_SECONDS", 180),
                     heartbeatSeconds = longValue(environment, "SSE_HEARTBEAT_SECONDS", 15),
                 ),
+                alerts = AlertConfig(
+                    evaluationSeconds = longValue(environment, "ALERT_EVALUATION_SECONDS", 30),
+                    outboxPollSeconds = longValue(environment, "NOTIFICATION_OUTBOX_POLL_SECONDS", 5),
+                    outboxBatchSize = intValue(environment, "NOTIFICATION_OUTBOX_BATCH_SIZE", 25),
+                    outboxMaxBackoffSeconds = longValue(environment, "NOTIFICATION_OUTBOX_MAX_BACKOFF_SECONDS", 3_600),
+                ),
             )
         }
 
@@ -71,6 +78,15 @@ data class AppConfig(
         private fun intValue(env: (String) -> String?, name: String, default: Int) = env(name)?.toIntOrNull() ?: default
         private fun doubleValue(env: (String) -> String?, name: String, default: Double) = env(name)?.toDoubleOrNull() ?: default
     }
+}
+
+data class AlertConfig(
+    val evaluationSeconds: Long = 30,
+    val outboxPollSeconds: Long = 5,
+    val outboxBatchSize: Int = 25,
+    val outboxMaxBackoffSeconds: Long = 3_600,
+) {
+    init { require(evaluationSeconds > 0 && outboxPollSeconds > 0 && outboxBatchSize in 1..100 && outboxMaxBackoffSeconds > 0) }
 }
 
 data class HistoryConfig(

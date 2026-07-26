@@ -20,8 +20,9 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import com.alad1nks.jaiqal.api.contract.PlantTelemetryUpdate
+import com.alad1nks.jaiqal.alerts.AlertService
 
-fun Route.userApi(service: UserApplicationService, plantTelemetry: PlantTelemetryService? = null, eventBus: MeasurementEventBus? = null, heartbeatSeconds: Long = 15) {
+fun Route.userApi(service: UserApplicationService, plantTelemetry: PlantTelemetryService? = null, eventBus: MeasurementEventBus? = null, heartbeatSeconds: Long = 15, alerts: AlertService? = null) {
     route("/api/v1") {
         route("/auth") {
             post("/register") { call.respond(HttpStatusCode.Created, service.register(call.receive<RegisterRequest>())) }
@@ -37,6 +38,16 @@ fun Route.userApi(service: UserApplicationService, plantTelemetry: PlantTelemetr
                 get { call.respond(service.listPlants(call.userId())) }
                 post { call.respond(HttpStatusCode.Created, service.createPlant(call.userId(), call.receive<CreatePlantRequest>())) }
                 route("/{plantId}") {
+                    if (alerts != null) {
+                        route("/alert-rules") {
+                            get { call.respond(alerts.rules(call.userId(), call.uuidParameter("plantId"))) }
+                            put { call.respond(alerts.putRules(call.userId(), call.uuidParameter("plantId"), call.receive<PutAlertRulesRequest>())) }
+                        }
+                        route("/alerts") {
+                            get { call.respond(alerts.alerts(call.userId(), call.uuidParameter("plantId"))) }
+                            post("/{alertId}/acknowledge") { call.respond(alerts.acknowledge(call.userId(), call.uuidParameter("plantId"), call.uuidParameter("alertId"))) }
+                        }
+                    }
                     get { call.respond(service.getPlant(call.userId(), call.uuidParameter("plantId"))) }
                     if (plantTelemetry != null) {
                         get("/latest") { call.respond(plantTelemetry.latest(call.userId(), call.uuidParameter("plantId"))) }
