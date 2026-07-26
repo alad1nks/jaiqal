@@ -3,11 +3,12 @@ package com.alad1nks.jaiqal.infrastructure.database
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
 import org.jetbrains.exposed.v1.json.jsonb
 
 internal object UsersTable : Table("users") {
-    val id = uuid("id")
+    val id = javaUUID("id")
     val email = varchar("email", 320)
     val passwordHash = varchar("password_hash", 255)
     val createdAt = timestampWithTimeZone("created_at")
@@ -15,8 +16,8 @@ internal object UsersTable : Table("users") {
 }
 
 internal object PlantsTable : Table("plants") {
-    val id = uuid("id")
-    val userId = uuid("user_id")
+    val id = javaUUID("id")
+    val userId = javaUUID("user_id")
     val name = varchar("name", 255)
     val species = varchar("species", 255).nullable()
     val imageUrl = varchar("image_url", 2048).nullable()
@@ -26,8 +27,8 @@ internal object PlantsTable : Table("plants") {
 }
 
 internal object DevicesTable : Table("devices") {
-    val id = uuid("id")
-    val plantId = uuid("plant_id").nullable()
+    val id = javaUUID("id")
+    val plantId = javaUUID("plant_id").nullable()
     val name = varchar("name", 255)
     val tokenHash = varchar("token_hash", 255)
     val firmwareVersion = varchar("firmware_version", 100).nullable()
@@ -41,7 +42,7 @@ internal object DevicesTable : Table("devices") {
 
 internal object MeasurementsTable : Table("measurements") {
     val id = long("id").autoIncrement()
-    val deviceId = uuid("device_id")
+    val deviceId = javaUUID("device_id")
     val sequence = long("sequence")
     val measuredAt = timestampWithTimeZone("measured_at")
     val receivedAt = timestampWithTimeZone("received_at")
@@ -55,26 +56,26 @@ internal object MeasurementsTable : Table("measurements") {
 }
 
 internal object DeviceLatestStateTable : Table("device_latest_state") {
-    val deviceId = uuid("device_id")
+    val deviceId = javaUUID("device_id")
     val measurementId = long("measurement_id")
     val updatedAt = timestampWithTimeZone("updated_at")
     override val primaryKey = PrimaryKey(deviceId)
 }
 
 internal object RefreshTokensTable : Table("refresh_tokens") {
-    val id = uuid("id")
-    val userId = uuid("user_id")
+    val id = javaUUID("id")
+    val userId = javaUUID("user_id")
     val tokenHash = varchar("token_hash", 255)
     val expiresAt = timestampWithTimeZone("expires_at")
     val createdAt = timestampWithTimeZone("created_at")
     val revokedAt = timestampWithTimeZone("revoked_at").nullable()
-    val replacedById = uuid("replaced_by_id").nullable()
+    val replacedById = javaUUID("replaced_by_id").nullable()
     override val primaryKey = PrimaryKey(id)
 }
 
 internal object AlertRulesTable : Table("alert_rules") {
-    val id = uuid("id")
-    val plantId = uuid("plant_id")
+    val id = javaUUID("id")
+    val plantId = javaUUID("plant_id")
     val type = varchar("type", 50)
     val threshold = double("threshold").nullable()
     val requiredDurationSeconds = long("required_duration_seconds")
@@ -87,7 +88,7 @@ internal object AlertRulesTable : Table("alert_rules") {
 
 internal object NotificationOutboxTable : Table("notification_outbox") {
     val id = long("id").autoIncrement()
-    val alertEventId = uuid("alert_event_id")
+    val alertEventId = javaUUID("alert_event_id")
     val channel = varchar("channel", 30)
     val payload = jsonb<JsonElement>("payload", Json.Default)
     val status = varchar("status", 20)

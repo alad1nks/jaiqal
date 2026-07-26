@@ -47,6 +47,14 @@ JWT_ISSUER=https://auth.example.com
 JWT_AUDIENCE=jaiqal-app
 JWT_SECRET=replace-with-a-long-random-secret
 ALLOWED_ORIGINS=http://localhost:8081,http://localhost:3000
+# Optional telemetry controls (shown with defaults)
+TELEMETRY_PAST_WINDOW_SECONDS=2592000
+TELEMETRY_FUTURE_WINDOW_SECONDS=300
+TELEMETRY_MIN_TEMPERATURE_CELSIUS=-50
+TELEMETRY_MAX_TEMPERATURE_CELSIUS=100
+TELEMETRY_MIN_ADC=0
+TELEMETRY_MAX_ADC=65535
+TELEMETRY_NEXT_UPLOAD_SECONDS=60
 ```
 
 With the variables exported, start the server with `./gradlew :server:run`.
@@ -66,6 +74,27 @@ Testcontainer and therefore require a working Docker-compatible container runtim
 ```shell
 ./gradlew :server:test
 ```
+
+### Device telemetry
+
+Provisioned devices authenticate with the separately issued raw token. Only its
+SHA-256 hash is stored by the server. A device sends the raw value using the
+`Device` authorization scheme; a device identifier in the JSON body is neither
+needed nor trusted:
+
+```http
+POST /api/device/v1/measurements HTTP/1.1
+Authorization: Device replace-with-provisioned-token
+Content-Type: application/json
+
+{"sequence":42,"firmwareVersion":"1.0.0","soilMoistureRaw":1530,"airTemperatureCelsius":23.5,"airHumidityPercent":51.0,"lightRaw":840}
+```
+
+For offline buffering, `POST /api/device/v1/measurements/batch` accepts an object
+with a `measurements` array of 1–100 entries. Sequences are idempotent per device.
+Missing timestamps, or timestamps outside the configured window, use receipt time
+and record the fallback reason in measurement metadata. Successful inserts update
+the latest state only when their measurement time is newer.
 
 ---
 
