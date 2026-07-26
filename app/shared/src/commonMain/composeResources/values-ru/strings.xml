@@ -1,0 +1,7 @@
+<resources>
+    <string name="plants">Растения</string><string name="alerts">Предупреждения</string><string name="settings">Настройки</string>
+    <string name="my_plants">Мои растения</string><string name="add">Добавить</string><string name="no_alerts">Предупреждений нет</string>
+    <string name="soil">Влажность почвы</string><string name="temperature">Температура</string>
+    <string name="waiting_for_data">Ожидаем первое измерение</string><string name="dark_theme">Тёмная тема</string><string name="sign_out">Выйти</string>
+    <string name="no_plants">Растений пока нет</string><string name="add_first_plant">Добавьте первое растение или привяжите устройство</string>
+</resources>

@@ -1,0 +1,7 @@
+<resources>
+    <string name="plants">Өсімдіктер</string><string name="alerts">Ескертулер</string><string name="settings">Баптаулар</string>
+    <string name="my_plants">Менің өсімдіктерім</string><string name="add">Қосу</string><string name="no_alerts">Ескерту жоқ</string>
+    <string name="soil">Топырақ ылғалы</string><string name="temperature">Температура</string>
+    <string name="waiting_for_data">Алғашқы өлшемді күтудеміз</string><string name="dark_theme">Қараңғы тақырып</string><string name="sign_out">Шығу</string>
+    <string name="no_plants">Әзірше өсімдік жоқ</string><string name="add_first_plant">Алғашқы өсімдікті қосыңыз немесе құрылғыны байланыстырыңыз</string>
+</resources>
