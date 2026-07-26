@@ -1,167 +1,133 @@
-This is a Kotlin Multiplatform project targeting Android, iOS, Web, Desktop (JVM), Server.
+# Жайқал
 
-* [/app/iosApp](./app/iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
+Жайқал is a Kotlin Multiplatform application and a production-oriented Ktor backend for monitoring house plants with ESP32 sensors. The backend is a **modular monolith**: feature packages share one process and one PostgreSQL database, while explicit repository and service boundaries keep business logic independent of persistence.
 
-* [/app/shared](./app/shared/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - [commonMain](./app/shared/src/commonMain/kotlin) is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    the [iosMain](./app/shared/src/iosMain/kotlin) folder would be the right place for such calls.
-    Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./app/shared/src/jvmMain/kotlin)
-    folder is the appropriate location.
+## Architecture and modules
 
-* [/core](./core/src) is for the code that will be shared between all targets in the project.
-  The most important subfolder is [commonMain](./core/src/commonMain/kotlin). If preferred, you
-  can add code to the platform-specific folders here too.
+| Module | Purpose |
+| --- | --- |
+| `:core:api-contract` | KMP-safe serializable requests, responses, and public API enums. |
+| `:server` | JVM Ktor API, authentication, telemetry, alerts, notification worker, Exposed/JDBC persistence, and Flyway migrations. |
+| `:app:shared` | Shared Compose UI and client code for Android, iOS, desktop, and web launchers. |
 
-* [/server](./server/src/main/kotlin) is for the Ktor server application.
+The server is organized by `auth`, `users`, `plants`, `devices`, `telemetry`, `alerts`, and `notifications` features. PostgreSQL access is isolated in `infrastructure/database`. Measurements are committed before an in-process event is published. Alert transitions and notification outbox records are committed atomically; a background worker claims and retries delivery. The bundled sender logs notifications, so local development needs no FCM or APNs credentials.
 
-### Running the apps
+## Requirements
 
-Use the run configurations provided by the run widget in your IDE's toolbar. You can also use these commands and options:
+- Docker with Docker Compose (recommended), or JDK 21 and PostgreSQL 14+
+- A Docker-compatible runtime to execute Testcontainers integration tests
 
-- Android app: `./gradlew :app:androidApp:assembleDebug`
-- Desktop app:
-  - Hot reload: `./gradlew :app:desktopApp:hotRun --auto`
-  - Standard run: `./gradlew :app:desktopApp:run`
-- Server: `./gradlew :server:run`
-- Web app:
-  - Wasm target (faster, modern browsers): `./gradlew :app:webApp:wasmJsBrowserDevelopmentRun`
-  - JS target (slower, supports older browsers): `./gradlew :app:webApp:jsBrowserDevelopmentRun`
-- iOS app: open the [/app/iosApp](./app/iosApp) directory in Xcode and run it from there.
+Copy the development template before starting locally:
 
-### Server configuration
-
-The server reads configuration from environment variables. `HTTP_PORT` defaults to
-`8080`; all database and JWT values are required. `ALLOWED_ORIGINS` is a
-comma-separated list of complete origins and can be empty for server-to-server use.
-
-```shell
-HTTP_PORT=8080
-DATABASE_URL=jdbc:postgresql://localhost:5432/jaiqal
-DATABASE_USER=jaiqal
-DATABASE_PASSWORD=replace-with-local-password
-JWT_ISSUER=https://auth.example.com
-JWT_AUDIENCE=jaiqal-app
-JWT_SECRET=replace-with-a-long-random-secret
-JWT_ACCESS_TOKEN_SECONDS=900
-JWT_REFRESH_TOKEN_SECONDS=2592000
-ALLOWED_ORIGINS=http://localhost:8081,http://localhost:3000
-# Optional telemetry controls (shown with defaults)
-TELEMETRY_PAST_WINDOW_SECONDS=2592000
-TELEMETRY_FUTURE_WINDOW_SECONDS=300
-TELEMETRY_MIN_TEMPERATURE_CELSIUS=-50
-TELEMETRY_MAX_TEMPERATURE_CELSIUS=100
-TELEMETRY_MIN_ADC=0
-TELEMETRY_MAX_ADC=65535
-TELEMETRY_NEXT_UPLOAD_SECONDS=60
-HISTORY_MAX_RANGE_SECONDS=31536000
-HISTORY_DEFAULT_RANGE_SECONDS=86400
-HISTORY_MAX_POINTS=2000
-DEVICE_ONLINE_WINDOW_SECONDS=180
-SSE_HEARTBEAT_SECONDS=15
+```bash
+cp .env.example .env
 ```
 
-With the variables exported, start the server with `./gradlew :server:run`.
-The liveness endpoint is `/health/live`; `/health/ready` additionally checks that
-PostgreSQL accepts a `SELECT 1` query.
+`.env.example` contains fake local values only. Never use its JWT secret or database password in a deployed environment and never commit `.env`.
 
-At server startup, HikariCP creates the PostgreSQL connection pool and Flyway
-applies pending migrations from `server/src/main/resources/db/migration`. Flyway
-records applied versions in `flyway_schema_history`, so restarting against an
-up-to-date database is safe. Persistence adapters use Exposed and keep its table
-types inside the `infrastructure.database` package; feature code depends on the
-repository interfaces instead.
+### Environment variables
 
-Repository and migration integration tests run against an ephemeral PostgreSQL
-Testcontainer and therefore require a working Docker-compatible container runtime:
+The required variables are `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD`, `JWT_ISSUER`, `JWT_AUDIENCE`, and `JWT_SECRET`. `HTTP_PORT` defaults to `8080`; `ALLOWED_ORIGINS` is a comma-separated allowlist of complete origins and may be empty.
 
-```shell
-./gradlew :server:test
+Optional controls, with defaults, are documented in `.env.example`: JWT lifetimes; telemetry time/temperature/ADC limits and upload interval; history range, point, online, and SSE heartbeat limits; and alert/outbox polling, batching, and retry limits.
+
+## Local startup
+
+Start PostgreSQL and the server, rebuilding the image when sources change:
+
+```bash
+docker compose up --build
+curl http://localhost:8080/health/live
+curl http://localhost:8080/health/ready
 ```
+
+Compose waits for PostgreSQL's `pg_isready` health check rather than using a fixed sleep. Stop the stack with `docker compose down`; add `--volumes` to delete local database data.
+
+To run against a PostgreSQL instance outside Compose, export the variables from `.env.example`, change `DATABASE_URL` to use `localhost`, and run:
+
+```bash
+./gradlew :server:run
+```
+
+## Database migrations
+
+Flyway migrations live in `server/src/main/resources/db/migration`. Server startup automatically applies pending migrations and records them in `flyway_schema_history`; rerunning the server is idempotent. To apply migrations locally, start the server against the target database:
+
+```bash
+./gradlew :server:run
+```
+
+The schema covers users, plants, devices, one-time device claim codes, measurements and latest state, rotating refresh tokens, alert rules/events/processing state, and the reliable notification outbox.
+
+## API quick start
+
+An IntelliJ HTTP Client collection with health, authentication, plant, claiming, telemetry, history, and alert examples is available at [`api.http`](api.http).
+
+### Login
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"gardener@example.com","password":"correct-horse-battery-staple"}'
+```
+
+The response contains a short-lived bearer access token and a rotating opaque refresh token. Calling `/api/v1/auth/refresh` consumes the old refresh token; replay is rejected.
 
 ### Device telemetry
 
-Provisioned devices authenticate with the separately issued raw token. Only its
-SHA-256 hash is stored by the server. A device sends the raw value using the
-`Device` authorization scheme; a device identifier in the JSON body is neither
-needed nor trusted:
-
-```http
-POST /api/device/v1/measurements HTTP/1.1
-Authorization: Device replace-with-provisioned-token
-Content-Type: application/json
-
-{"sequence":42,"firmwareVersion":"1.0.0","soilMoistureRaw":1530,"airTemperatureCelsius":23.5,"airHumidityPercent":51.0,"lightRaw":840}
+```bash
+curl -X POST http://localhost:8080/api/device/v1/measurements \
+  -H 'Authorization: Device replace-with-provisioned-token' \
+  -H 'Content-Type: application/json' \
+  -d '{"sequence":42,"firmwareVersion":"1.0.0","soilMoistureRaw":1530,"airTemperatureCelsius":23.5,"airHumidityPercent":51.0,"lightRaw":840}'
 ```
 
-For offline buffering, `POST /api/device/v1/measurements/batch` accepts an object
-with a `measurements` array of 1–100 entries. Sequences are idempotent per device.
-Missing timestamps, or timestamps outside the configured window, use receipt time
-and record the fallback reason in measurement metadata. Successful inserts update
-the latest state only when their measurement time is newer.
+The device is identified only by the token. Sequences are idempotent per device; batches accept 1–100 measurements. Invalid or absent device timestamps fall back to receipt time with diagnostic metadata. Soil percentage remains null until dry/wet calibration exists.
 
-### Users, plants, and device claiming
+## Device pairing flow
 
-User authentication is available under `/api/v1/auth` through `register`,
-`login`, `refresh`, and authenticated `logout` endpoints. Passwords are stored as
-Argon2id hashes. Access JWTs are short lived; opaque refresh tokens rotate on each
-use, and replaying a rotated token is rejected.
+1. With the database environment exported, create an unattached device and 24-hour one-time code:
+   ```bash
+   DEVICE_NAME='Living room' ./gradlew :server:provisionDevice
+   ```
+2. Securely transfer the printed raw device token to the ESP32. Only its SHA-256 hash is stored.
+3. An authenticated user creates a plant and submits the claim code plus owned plant ID to `POST /api/v1/devices/claim`.
+4. The claim code is consumed once and the device is attached to that plant.
+5. The device uploads using `Authorization: Device <token>`. Token rotation immediately invalidates the previous token.
 
-Authenticated plant management uses `GET/POST /api/v1/plants` and
-`GET/PATCH/DELETE /api/v1/plants/{plantId}`. Deletion archives a plant. Device
-management uses `/api/v1/devices`, including claim, calibration, update, and
-token-rotation operations. All lookups are scoped to the JWT subject and return
-404 for resources owned by another account.
+## Main endpoints
 
-In development, provision an unattached sensor and a 24-hour one-time claim code:
+- Health: `GET /health/live`, `GET /health/ready`
+- Authentication: `POST /api/v1/auth/{register,login,refresh,logout}`
+- Plants: CRUD under `/api/v1/plants`
+- Devices: claim, list, update, calibrate, and rotate token under `/api/v1/devices`
+- Telemetry ingestion: `POST /api/device/v1/measurements` and `/batch`
+- Reads: `/api/v1/plants/{plantId}/{latest,history,stream}`; history intervals are `raw`, `5m`, `1h`, and `1d`, and stream is SSE
+- Alerts: rules, history, and acknowledgement under `/api/v1/plants/{plantId}`
 
-```shell
-DATABASE_URL=jdbc:postgresql://localhost:5432/jaiqal \
-DATABASE_USER=jaiqal DATABASE_PASSWORD=local-password DEVICE_NAME="Living room" \
-./gradlew :server:provisionDevice
+All user-owned resources are scoped to the JWT subject. Cross-user lookups return 404 where possible to avoid disclosing resource existence.
+
+## Tests and verification
+
+```bash
+./gradlew :core:api-contract:allTests
+./gradlew :server:test
+./gradlew :server:build
 ```
 
-The command prints the raw device token and claim code exactly for provisioning;
-the database stores only their SHA-256 hashes. Claim the device by sending the
-code and an owned plant ID to `POST /api/v1/devices/claim`. Rotating a device
-token immediately invalidates the previous token.
+The suite combines pure unit tests, Ktor route tests, and PostgreSQL Testcontainers integration tests. It covers authentication/refresh rotation and ownership boundaries, device authentication, telemetry validation/idempotency/calibration, latest-state ordering and history aggregation, alert duration/deduplication/recovery, migrations, and outbox retry safety.
 
-### Plant telemetry reads and realtime updates
+## Client applications
 
-Authenticated clients can read the indexed latest state at
-`GET /api/v1/plants/{plantId}/latest`. History is available at
-`GET /api/v1/plants/{plantId}/history` with ISO-8601 `from`/`to` parameters and
-an `interval` of `raw`, `5m`, `1h`, or `1d`. Bucketed values are averaged in
-PostgreSQL and every query is constrained by configured range and point limits.
+- Android: `./gradlew :app:androidApp:assembleDebug`
+- Desktop: `./gradlew :app:desktopApp:run`
+- Web: `./gradlew :app:webApp:wasmJsBrowserDevelopmentRun`
+- iOS: open `app/iosApp` in Xcode
 
-`GET /api/v1/plants/{plantId}/stream` is an authenticated Server-Sent Events
-notification stream. Measurement events tell clients to refresh REST state;
-heartbeat comments keep idle connections alive.
+## Known limitations
 
-### Alerts and notifications
-
-Alert rules are managed at `GET/PUT /api/v1/plants/{plantId}/alert-rules`; alert
-history and acknowledgement use `GET /api/v1/plants/{plantId}/alerts` and
-`POST /api/v1/plants/{plantId}/alerts/{alertId}/acknowledge`. Rules support low
-soil moisture, high/low temperature, and device-offline thresholds with separate
-trigger and recovery durations. Evaluation state is persisted, so a transient
-sample does not create an alert and active alerts are deduplicated.
-
-Alert transitions and their notification outbox rows are committed together.
-The built-in development sender logs deliveries and needs no FCM/APNs credentials;
-production push providers can implement `NotificationSender`. Worker polling,
-batch size, retry backoff, and alert evaluation frequency can be configured with
-`NOTIFICATION_OUTBOX_POLL_SECONDS`, `NOTIFICATION_OUTBOX_BATCH_SIZE`,
-`NOTIFICATION_OUTBOX_MAX_BACKOFF_SECONDS`, and `ALERT_EVALUATION_SECONDS`.
-
----
-
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html),
-[Compose Multiplatform](https://github.com/JetBrains/compose-multiplatform/#compose-multiplatform),
-[Kotlin/Wasm](https://kotl.in/wasm/)…
-
-We would appreciate your feedback on Compose/Web and Kotlin/Wasm in the public Slack channel [#compose-web](https://slack-chats.kotlinlang.org/c/compose-web).
-If you face any issues, please report them on [YouTrack](https://youtrack.jetbrains.com/newIssue?project=CMP).
+- Notification delivery uses the logging sender; production FCM/APNs adapters and credentials are intentionally not included.
+- The in-process measurement event bus and SSE subscriptions are node-local; the server is currently designed as one modular-monolith instance.
+- Offline-device alert evaluation is polling-based, and telemetry aggregation uses standard PostgreSQL rather than TimescaleDB.
+- Device provisioning is an operator Gradle command; there is no administrator UI.
+- Firmware, MQTT, image uploads, species recognition, and AI recommendations are outside the current scope.

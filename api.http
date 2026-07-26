@@ -1,0 +1,68 @@
+@baseUrl = http://localhost:8080
+@email = gardener@example.com
+@password = correct-horse-battery-staple
+@accessToken = paste-access-token
+@refreshToken = paste-refresh-token
+@plantId = paste-plant-id
+@deviceToken = paste-device-token
+@claimCode = paste-claim-code
+
+### Liveness
+GET {{baseUrl}}/health/live
+
+### Readiness
+GET {{baseUrl}}/health/ready
+
+### Register (the response contains access and refresh tokens)
+POST {{baseUrl}}/api/v1/auth/register
+Content-Type: application/json
+
+{"email":"{{email}}","password":"{{password}}"}
+
+### Login
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{"email":"{{email}}","password":"{{password}}"}
+
+### Rotate refresh token
+POST {{baseUrl}}/api/v1/auth/refresh
+Content-Type: application/json
+
+{"refreshToken":"{{refreshToken}}"}
+
+### Create plant
+POST {{baseUrl}}/api/v1/plants
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"name":"Monstera","species":"Monstera deliciosa"}
+
+### Claim provisioned device
+POST {{baseUrl}}/api/v1/devices/claim
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"claimCode":"{{claimCode}}","plantId":"{{plantId}}"}
+
+### Upload telemetry (device identity comes only from the token)
+POST {{baseUrl}}/api/device/v1/measurements
+Authorization: Device {{deviceToken}}
+Content-Type: application/json
+
+{"sequence":1,"firmwareVersion":"1.0.0","soilMoistureRaw":1530,"airTemperatureCelsius":23.5,"airHumidityPercent":51.0,"lightRaw":840}
+
+### Latest plant state
+GET {{baseUrl}}/api/v1/plants/{{plantId}}/latest
+Authorization: Bearer {{accessToken}}
+
+### Hourly history
+GET {{baseUrl}}/api/v1/plants/{{plantId}}/history?interval=1h
+Authorization: Bearer {{accessToken}}
+
+### Alert rules
+PUT {{baseUrl}}/api/v1/plants/{{plantId}}/alert-rules
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"rules":[{"type":"LOW_SOIL_MOISTURE","threshold":25.0,"requiredDurationSeconds":300,"recoveryDurationSeconds":300,"enabled":true}]}

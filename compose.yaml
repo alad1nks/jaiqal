@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: jaiqal
+      POSTGRES_USER: ${DATABASE_USER:-jaiqal}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-jaiqal-local-password}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      HTTP_PORT: ${HTTP_PORT:-8080}
+      DATABASE_URL: jdbc:postgresql://postgres:5432/jaiqal
+      DATABASE_USER: ${DATABASE_USER:-jaiqal}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-jaiqal-local-password}
+      JWT_ISSUER: ${JWT_ISSUER:-http://localhost:8080}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-jaiqal-app}
+      JWT_SECRET: ${JWT_SECRET:-local-only-secret-change-before-production-32-chars}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8081}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${HTTP_PORT:-8080}:${HTTP_PORT:-8080}"
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
