@@ -1,12 +1,14 @@
 package com.alad1nks.jaiqal.infrastructure.security
 
 import com.alad1nks.jaiqal.auth.FirebaseTokenVerifier
+import com.alad1nks.jaiqal.auth.FirebaseTokenVerificationException
 import com.alad1nks.jaiqal.auth.VerifiedFirebaseToken
 import com.alad1nks.jaiqal.config.FirebaseConfig
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -17,7 +19,13 @@ class FirebaseAdminTokenVerifier(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : FirebaseTokenVerifier {
     override suspend fun verify(idToken: String): VerifiedFirebaseToken = withContext(dispatcher) {
-        val decoded = firebaseAuth.verifyIdToken(idToken, checkRevokedTokens)
+        val decoded = try {
+            firebaseAuth.verifyIdToken(idToken, checkRevokedTokens)
+        } catch (failure: FirebaseAuthException) {
+            throw FirebaseTokenVerificationException(failure)
+        } catch (failure: IllegalArgumentException) {
+            throw FirebaseTokenVerificationException(failure)
+        }
         VerifiedFirebaseToken(
             uid = decoded.uid,
             email = decoded.email,

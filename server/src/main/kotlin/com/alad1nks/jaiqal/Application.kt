@@ -1,6 +1,7 @@
 package com.alad1nks.jaiqal
 
 import com.alad1nks.jaiqal.auth.DeviceTokenAuthenticator
+import com.alad1nks.jaiqal.auth.FirebaseTokenVerifier
 import com.alad1nks.jaiqal.config.AppConfig
 import com.alad1nks.jaiqal.infrastructure.database.DatabaseReadiness
 import com.alad1nks.jaiqal.infrastructure.database.JdbcDatabaseReadiness
@@ -14,7 +15,9 @@ import com.alad1nks.jaiqal.devices.DeviceRepository
 import com.alad1nks.jaiqal.telemetry.TelemetryIngestionService
 import com.alad1nks.jaiqal.infrastructure.database.JdbcUserApplicationStore
 import com.alad1nks.jaiqal.infrastructure.database.JdbcPlantTelemetryRepository
+import com.alad1nks.jaiqal.infrastructure.database.JdbcUserIdentityStore
 import com.alad1nks.jaiqal.users.UserApplicationService
+import com.alad1nks.jaiqal.users.FirebaseUserIdentityService
 import com.alad1nks.jaiqal.telemetry.MeasurementEventBus
 import com.alad1nks.jaiqal.telemetry.PlantTelemetryService
 import com.alad1nks.jaiqal.plugins.configureAuthentication
@@ -35,7 +38,7 @@ import org.slf4j.LoggerFactory
 
 fun main() {
     val config = AppConfig.fromEnvironment()
-    FirebaseAdmin.initialize(config.firebase)
+    val firebaseTokenVerifier = FirebaseAdmin.initialize(config.firebase)
     val database = DatabaseInfrastructure.create(config.database)
     database.migrate()
     val eventBus = MeasurementEventBus()
@@ -57,6 +60,11 @@ fun main() {
             eventBus,
             alertService,
             notificationWorker,
+            firebaseTokenVerifier,
+            FirebaseUserIdentityService(
+                JdbcUserIdentityStore(database.dataSource),
+                config.firebase.autoProvisionUsers,
+            ),
         )
     }.start(wait = true)
 }
@@ -72,10 +80,12 @@ fun Application.configureApplication(
     eventBus: MeasurementEventBus? = null,
     alertService: AlertService? = null,
     notificationWorker: NotificationWorker? = null,
+    firebaseTokenVerifier: FirebaseTokenVerifier? = null,
+    firebaseUsers: FirebaseUserIdentityService? = null,
 ) {
     configureMonitoring()
     configureHttp(config)
-    configureAuthentication(config.jwt, deviceTokenAuthenticator)
+    configureAuthentication(config.jwt, deviceTokenAuthenticator, firebaseTokenVerifier, firebaseUsers)
     configureRouting(databaseReadiness, deviceRepository, telemetry, userApplication, plantTelemetry, eventBus, config.history.heartbeatSeconds, alertService)
     if (alertService != null) {
         eventBus?.let { bus -> launch(Dispatchers.IO) { bus.updates.collect { event -> event.plantId?.let(alertService::evaluatePlant) } } }
