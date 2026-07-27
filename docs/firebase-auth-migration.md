@@ -236,3 +236,14 @@ flow, rotation/revoke refresh sessions, `JwtConfig`, JWT environment variables �
 намеренно сохранены в базе. Неиспользуемые runtime repository/model для refresh
 tokens удалены; физическое изменение схемы допускается только отдельной последующей
 миграцией. Firebase user provider и Device Token не изменены.
+
+## Статус реализации: шаг 7
+
+Добавлен защищённый `GET /api/v1/auth/me`. Endpoint использует provider
+`firebase-user` и возвращает только internal UUID, email из проверенного Firebase
+principal и `emailVerified`. Firebase UID, ID Token, внутренние claims, password
+hash и server credentials в wire-контракт не входят.
+
+Существующие `GET /health/live` и `GET /health/ready` сохранены без изменений:
+они возвращают только состояние процесса или доступности базы данных и не
+раскрывают Firebase project ID, credentials или настройки проверки токенов.

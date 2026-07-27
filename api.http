@@ -27,6 +27,10 @@ POST {{baseUrl}}/api/v1/auth/refresh
 ### Disabled legacy logout (410 Gone)
 POST {{baseUrl}}/api/v1/auth/logout
 
+### Current internal user profile
+GET {{baseUrl}}/api/v1/auth/me
+Authorization: Bearer {{firebaseIdToken}}
+
 ### Create plant
 POST {{baseUrl}}/api/v1/plants
 Authorization: Bearer {{firebaseIdToken}}

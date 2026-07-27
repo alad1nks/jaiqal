@@ -2,6 +2,12 @@ package com.alad1nks.jaiqal.api.contract
 
 import kotlinx.serialization.Serializable
 
+@Serializable data class CurrentUserResponse(
+    val id: String,
+    val email: String? = null,
+    val emailVerified: Boolean,
+)
+
 @Serializable data class CreatePlantRequest(val name: String, val species: String? = null, val imageUrl: String? = null)
 @Serializable data class UpdatePlantRequest(val name: String? = null, val species: String? = null, val imageUrl: String? = null)
 @Serializable data class PlantResponse(
