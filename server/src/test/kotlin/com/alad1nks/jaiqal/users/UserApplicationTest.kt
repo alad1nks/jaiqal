@@ -14,6 +14,7 @@ import kotlin.test.*
 import com.alad1nks.jaiqal.configureApplication
 import com.alad1nks.jaiqal.config.AppConfig
 import com.alad1nks.jaiqal.config.DatabaseConfig
+import com.alad1nks.jaiqal.config.FirebaseConfig
 import io.ktor.client.request.*
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.*
@@ -60,7 +61,7 @@ class UserApplicationTest {
     }
 
     @Test fun `auth and plant routes require and honor JWT ownership`() = testApplication {
-        val store = MemoryStore(); val config = AppConfig(8080, DatabaseConfig("jdbc:none","x","x"), JwtConfig("issuer","audience","a-long-test-secret",60,600), emptySet())
+        val store = MemoryStore(); val config = AppConfig(8080, DatabaseConfig("jdbc:none","x","x"), JwtConfig("issuer","audience","a-long-test-secret",60,600), emptySet(), FirebaseConfig("test-project"))
         val service = UserApplicationService(store, config.jwt)
         application { configureApplication(config, { true }, userApplication = service) }
         val registration = client.post("/api/v1/auth/register") { contentType(ContentType.Application.Json); setBody("""{"email":"route@example.com","password":"correct horse battery"}""") }

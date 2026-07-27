@@ -5,6 +5,7 @@ data class AppConfig(
     val database: DatabaseConfig,
     val jwt: JwtConfig,
     val allowedOrigins: Set<String>,
+    val firebase: FirebaseConfig,
     val telemetry: TelemetryConfig = TelemetryConfig(),
     val history: HistoryConfig = HistoryConfig(),
     val alerts: AlertConfig = AlertConfig(),
@@ -48,6 +49,10 @@ data class AppConfig(
                     accessTokenSeconds = longValue(environment, "JWT_ACCESS_TOKEN_SECONDS", 900),
                     refreshTokenSeconds = longValue(environment, "JWT_REFRESH_TOKEN_SECONDS", 2_592_000),
                 ),
+                firebase = FirebaseConfig(
+                    projectId = required("FIREBASE_PROJECT_ID"),
+                    checkRevokedTokens = booleanValue(environment, "FIREBASE_CHECK_REVOKED_TOKENS", false),
+                ),
                 allowedOrigins = allowedOrigins,
                 telemetry = TelemetryConfig(
                     pastWindowSeconds = longValue(environment, "TELEMETRY_PAST_WINDOW_SECONDS", 2_592_000),
@@ -77,6 +82,22 @@ data class AppConfig(
         private fun longValue(env: (String) -> String?, name: String, default: Long) = env(name)?.toLongOrNull() ?: default
         private fun intValue(env: (String) -> String?, name: String, default: Int) = env(name)?.toIntOrNull() ?: default
         private fun doubleValue(env: (String) -> String?, name: String, default: Double) = env(name)?.toDoubleOrNull() ?: default
+        private fun booleanValue(env: (String) -> String?, name: String, default: Boolean): Boolean =
+            when (val value = env(name)?.trim()?.lowercase()) {
+                null, "" -> default
+                "true" -> true
+                "false" -> false
+                else -> error("$name must be true or false, but was '$value'")
+            }
+    }
+}
+
+data class FirebaseConfig(
+    val projectId: String,
+    val checkRevokedTokens: Boolean = false,
+) {
+    init {
+        require(projectId.isNotBlank()) { "FIREBASE_PROJECT_ID must not be blank" }
     }
 }
 
