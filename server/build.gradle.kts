@@ -29,6 +29,7 @@ dependencies {
     implementation(libs.exposed.jdbc)
     implementation(libs.exposed.javaTime)
     implementation(libs.exposed.json)
+    implementation(libs.firebase.admin)
     implementation(libs.argon2)
     implementation(libs.ktor.serializationKotlinxJson)
     implementation(libs.ktor.serverAuth)

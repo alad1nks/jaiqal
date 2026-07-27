@@ -6,6 +6,7 @@ import com.alad1nks.jaiqal.auth.DevicePrincipal
 import com.alad1nks.jaiqal.auth.DeviceTokenAuthenticator
 import com.alad1nks.jaiqal.config.AppConfig
 import com.alad1nks.jaiqal.config.DatabaseConfig
+import com.alad1nks.jaiqal.config.FirebaseConfig
 import com.alad1nks.jaiqal.config.JwtConfig
 import com.alad1nks.jaiqal.devices.DeviceRecord
 import com.alad1nks.jaiqal.devices.DeviceRepository
@@ -69,5 +70,5 @@ class TelemetryRoutesTest {
     private suspend fun io.ktor.server.testing.ApplicationTestBuilder.upload(auth: String, body: String, path: String = "/api/device/v1/measurements") =
         client.post(path) { header(HttpHeaders.Authorization, auth); header(HttpHeaders.ContentType, ContentType.Application.Json); setBody(body) }
 
-    private fun config() = AppConfig(8080, DatabaseConfig("jdbc:none", "x", "x"), JwtConfig("i", "a", "long-enough-test-secret"), emptySet())
+    private fun config() = AppConfig(8080, DatabaseConfig("jdbc:none", "x", "x"), JwtConfig("i", "a", "long-enough-test-secret"), emptySet(), FirebaseConfig("test-project"))
 }

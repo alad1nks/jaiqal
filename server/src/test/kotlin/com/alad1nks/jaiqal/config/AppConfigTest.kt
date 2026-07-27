@@ -21,6 +21,8 @@ class AppConfigTest {
         )
         assertEquals("jdbc:postgresql://db:5432/jaiqal", config.database.url)
         assertEquals("issuer", config.jwt.issuer)
+        assertEquals("jaiqal-test", config.firebase.projectId)
+        assertEquals(false, config.firebase.checkRevokedTokens)
     }
 
     @Test
@@ -41,6 +43,26 @@ class AppConfigTest {
         }
     }
 
+    @Test
+    fun failsWithoutFirebaseProjectId() {
+        val environment = requiredEnvironment() - "FIREBASE_PROJECT_ID"
+
+        assertFailsWith<IllegalStateException> {
+            AppConfig.fromEnvironment(environment::get)
+        }
+    }
+
+    @Test
+    fun readsStrictFirebaseRevocationFlag() {
+        val enabled = requiredEnvironment() + ("FIREBASE_CHECK_REVOKED_TOKENS" to "true")
+        assertEquals(true, AppConfig.fromEnvironment(enabled::get).firebase.checkRevokedTokens)
+
+        val invalid = requiredEnvironment() + ("FIREBASE_CHECK_REVOKED_TOKENS" to "yes")
+        assertFailsWith<IllegalStateException> {
+            AppConfig.fromEnvironment(invalid::get)
+        }
+    }
+
     private fun requiredEnvironment() = mapOf(
         "DATABASE_URL" to "jdbc:postgresql://db:5432/jaiqal",
         "DATABASE_USER" to "jaiqal",
@@ -48,5 +70,6 @@ class AppConfigTest {
         "JWT_ISSUER" to "issuer",
         "JWT_AUDIENCE" to "audience",
         "JWT_SECRET" to "jwt-secret",
+        "FIREBASE_PROJECT_ID" to "jaiqal-test",
     )
 }

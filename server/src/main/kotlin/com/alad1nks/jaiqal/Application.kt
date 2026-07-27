@@ -9,6 +9,7 @@ import com.alad1nks.jaiqal.infrastructure.database.DataSourceDatabaseReadiness
 import com.alad1nks.jaiqal.infrastructure.database.ExposedDeviceRepository
 import com.alad1nks.jaiqal.infrastructure.database.ExposedDeviceTokenAuthenticator
 import com.alad1nks.jaiqal.infrastructure.database.ExposedTelemetryStore
+import com.alad1nks.jaiqal.infrastructure.security.FirebaseAdmin
 import com.alad1nks.jaiqal.devices.DeviceRepository
 import com.alad1nks.jaiqal.telemetry.TelemetryIngestionService
 import com.alad1nks.jaiqal.infrastructure.database.JdbcUserApplicationStore
@@ -34,6 +35,7 @@ import org.slf4j.LoggerFactory
 
 fun main() {
     val config = AppConfig.fromEnvironment()
+    FirebaseAdmin.initialize(config.firebase)
     val database = DatabaseInfrastructure.create(config.database)
     database.migrate()
     val eventBus = MeasurementEventBus()

@@ -27,9 +27,11 @@ cp .env.example .env
 
 ### Environment variables
 
-The required variables are `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD`, `JWT_ISSUER`, `JWT_AUDIENCE`, and `JWT_SECRET`. `HTTP_PORT` defaults to `8080`; `ALLOWED_ORIGINS` is a comma-separated allowlist of complete origins and may be empty.
+The required variables are `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD`, `JWT_ISSUER`, `JWT_AUDIENCE`, `JWT_SECRET`, and `FIREBASE_PROJECT_ID`. `HTTP_PORT` defaults to `8080`; `ALLOWED_ORIGINS` is a comma-separated allowlist of complete origins and may be empty.
 
-Optional controls, with defaults, are documented in `.env.example`: JWT lifetimes; telemetry time/temperature/ADC limits and upload interval; history range, point, online, and SSE heartbeat limits; and alert/outbox polling, batching, and retry limits.
+Firebase Admin uses Application Default Credentials. In Google-hosted environments, use workload identity. For local JVM execution, set `GOOGLE_APPLICATION_CREDENTIALS` to a service-account JSON stored outside this repository. Startup fails before opening the HTTP port if the project ID or ADC is unavailable. `FIREBASE_CHECK_REVOKED_TOKENS` defaults to `false`; enabling it adds the Firebase remote check for token revocation and disabled users.
+
+The Firebase verifier is initialized but is not yet attached to user routes: those routes continue to use the legacy JWT provider until the provider migration step. Optional controls, with defaults, are documented in `.env.example`: JWT lifetimes; Firebase revocation checking; telemetry time/temperature/ADC limits and upload interval; history range, point, online, and SSE heartbeat limits; and alert/outbox polling, batching, and retry limits.
 
 ## Local startup
 

@@ -4,6 +4,7 @@ import com.alad1nks.jaiqal.api.contract.ApiErrorResponse
 import com.alad1nks.jaiqal.api.contract.HealthResponse
 import com.alad1nks.jaiqal.config.AppConfig
 import com.alad1nks.jaiqal.config.DatabaseConfig
+import com.alad1nks.jaiqal.config.FirebaseConfig
 import com.alad1nks.jaiqal.config.JwtConfig
 import com.alad1nks.jaiqal.plugins.DEVICE_TOKEN_AUTH
 import com.alad1nks.jaiqal.plugins.USER_JWT_AUTH
@@ -170,5 +171,6 @@ class ApplicationTest {
             secret = "test-secret-that-is-long-enough-for-hmac",
         ),
         allowedOrigins = setOf("https://app.example.test"),
+        firebase = FirebaseConfig(projectId = "test-project"),
     )
 }
