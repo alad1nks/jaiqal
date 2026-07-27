@@ -61,7 +61,8 @@ class UserApplicationService(
 
     fun login(request: LoginRequest): AuthResponse {
         val user = store.findUserByEmail(normalizeEmail(request.email))
-        if (user == null || !passwordHasher.verify(user.passwordHash, request.password)) unauthorized("INVALID_CREDENTIALS", "Email or password is invalid")
+        val passwordHash = user?.passwordHash
+        if (user == null || passwordHash == null || !passwordHasher.verify(passwordHash, request.password)) unauthorized("INVALID_CREDENTIALS", "Email or password is invalid")
         return issueSession(user)
     }
 
@@ -120,11 +121,12 @@ class UserApplicationService(
         return authResponse(user, raw)
     }
     private fun authResponse(user: UserRecord, refresh: String): AuthResponse {
+        val email = user.email ?: unauthorized("INVALID_CREDENTIALS", "Email or password is invalid")
         val issued = now()
         val access = JWT.create().withIssuer(jwt.issuer).withAudience(jwt.audience).withSubject(user.id.toString())
             .withIssuedAt(Date.from(issued.toInstant())).withExpiresAt(Date.from(issued.plusSeconds(jwt.accessTokenSeconds).toInstant()))
             .sign(Algorithm.HMAC256(jwt.secret))
-        return AuthResponse(UserResponse(user.id.toString(), user.email), access, refresh, jwt.accessTokenSeconds)
+        return AuthResponse(UserResponse(user.id.toString(), email), access, refresh, jwt.accessTokenSeconds)
     }
     private fun newToken() = ByteArray(32).also(random::nextBytes).joinToString("") { "%02x".format(it) }
     private fun tokenHash(value: String) = DeviceTokens.hashHex(value)

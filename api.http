@@ -9,6 +9,8 @@
 
 # Firebase Admin is initialized at server startup. User endpoints still use the
 # legacy access token until the Firebase Ktor provider migration is completed.
+# FIREBASE_AUTO_PROVISION_USERS defaults to true because the project has no
+# pre-existing users. The first valid Firebase token creates an internal user.
 
 ### Liveness
 GET {{baseUrl}}/health/live

@@ -33,6 +33,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-local-only-secret-change-before-production-32-chars}
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
       FIREBASE_CHECK_REVOKED_TOKENS: ${FIREBASE_CHECK_REVOKED_TOKENS:-false}
+      FIREBASE_AUTO_PROVISION_USERS: ${FIREBASE_AUTO_PROVISION_USERS:-true}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8081}
     depends_on:
       postgres:

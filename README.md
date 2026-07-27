@@ -31,7 +31,9 @@ The required variables are `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD`,
 
 Firebase Admin uses Application Default Credentials. In Google-hosted environments, use workload identity. For local JVM execution, set `GOOGLE_APPLICATION_CREDENTIALS` to a service-account JSON stored outside this repository. Startup fails before opening the HTTP port if the project ID or ADC is unavailable. `FIREBASE_CHECK_REVOKED_TOKENS` defaults to `false`; enabling it adds the Firebase remote check for token revocation and disabled users.
 
-The Firebase verifier is initialized but is not yet attached to user routes: those routes continue to use the legacy JWT provider until the provider migration step. Optional controls, with defaults, are documented in `.env.example`: JWT lifetimes; Firebase revocation checking; telemetry time/temperature/ADC limits and upload interval; history range, point, online, and SSE heartbeat limits; and alert/outbox polling, batching, and retry limits.
+The project has no pre-existing users, so `FIREBASE_AUTO_PROVISION_USERS` defaults to `true`. The first valid Firebase token atomically creates a passwordless internal `users` row and its identity; tokens without an email are supported. Set the flag to `false` to refuse unknown Firebase UIDs without creating an account.
+
+The Firebase verifier is initialized but is not yet attached to user routes: those routes continue to use the legacy JWT provider until the provider migration step. Optional controls, with defaults, are documented in `.env.example`: JWT lifetimes; Firebase revocation checking and user auto-provisioning; telemetry time/temperature/ADC limits and upload interval; history range, point, online, and SSE heartbeat limits; and alert/outbox polling, batching, and retry limits.
 
 ## Local startup
 
@@ -59,7 +61,7 @@ Flyway migrations live in `server/src/main/resources/db/migration`. Server start
 ./gradlew :server:run
 ```
 
-The schema covers users, plants, devices, one-time device claim codes, measurements and latest state, rotating refresh tokens, alert rules/events/processing state, and the reliable notification outbox.
+The schema covers users and external identities, plants, devices, one-time device claim codes, measurements and latest state, rotating refresh tokens, alert rules/events/processing state, and the reliable notification outbox. Firebase identities map `(provider, Firebase UID)` to the internal user UUID; existing foreign-key structure is preserved.
 
 ## API quick start
 

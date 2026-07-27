@@ -27,7 +27,7 @@ class UserApplicationTest {
         val service = service(store)
         val auth = service.register(RegisterRequest("  USER@Example.COM ", "correct horse battery"))
         assertEquals("user@example.com", auth.user.email)
-        assertFalse(store.users.single().passwordHash.contains("correct horse battery"))
+        assertFalse(requireNotNull(store.users.single().passwordHash).contains("correct horse battery"))
 
         val rotated = service.refresh(RefreshRequest(auth.refreshToken))
         assertNotEquals(auth.refreshToken, rotated.refreshToken)
