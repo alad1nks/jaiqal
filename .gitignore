@@ -19,3 +19,8 @@ captures
 node_modules/
 kotlin-js-store
 .env
+firebase-service-account*.json
+*firebase-adminsdk*.json
+application_default_credentials.json
+*.pem
+*.key
