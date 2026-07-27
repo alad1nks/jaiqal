@@ -13,3 +13,8 @@ data class VerifiedFirebaseToken(
 fun interface FirebaseTokenVerifier {
     suspend fun verify(idToken: String): VerifiedFirebaseToken
 }
+
+class FirebaseTokenVerificationException(cause: Throwable? = null) : RuntimeException(
+    "Firebase ID token verification failed",
+    cause,
+)

@@ -184,3 +184,22 @@ nullable. Это позволяет создавать пользователя 
 выполняется в одной транзакции. Конкурентный первый вход с тем же UID возвращает
 запись победившей транзакции. При явном выключении auto-provisioning неизвестный
 UID получает понятный отказ.
+
+## Статус реализации: шаг 4
+
+Добавлен отдельный Ktor provider `firebase-user`. Он принимает только схему
+`Authorization: Bearer`, проверяет ID Token через `FirebaseTokenVerifier`, находит
+или атомарно создаёт внутреннего пользователя и формирует `UserPrincipal` с
+internal `userId`, Firebase UID, email и признаком его верификации. JDBC lookup и
+provisioning выполняются на `Dispatchers.IO`.
+
+Ошибки подписи, issuer/audience/project, срока действия, disabled/revoked user,
+отсутствующая или некорректная схема, неизвестный UID при выключенном provisioning
+и конфликт identity дают одинаковый нейтральный `401 Unauthorized`; токен и детали
+Firebase/БД в ответ не попадают. Неожиданные инфраструктурные ошибки не маскируются
+под ошибку аутентификации.
+
+Production wiring использует singleton verifier из Firebase Admin и
+`JdbcUserIdentityStore`. Provider `device-token` остаётся отдельным и принимает
+только схему `Device`. Пользовательские маршруты пока остаются на `user-jwt` — их
+переключение выполняется на шаге 5.

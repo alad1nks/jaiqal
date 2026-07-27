@@ -33,7 +33,7 @@ Firebase Admin uses Application Default Credentials. In Google-hosted environmen
 
 The project has no pre-existing users, so `FIREBASE_AUTO_PROVISION_USERS` defaults to `true`. The first valid Firebase token atomically creates a passwordless internal `users` row and its identity; tokens without an email are supported. Set the flag to `false` to refuse unknown Firebase UIDs without creating an account.
 
-The Firebase verifier is initialized but is not yet attached to user routes: those routes continue to use the legacy JWT provider until the provider migration step. Optional controls, with defaults, are documented in `.env.example`: JWT lifetimes; Firebase revocation checking and user auto-provisioning; telemetry time/temperature/ADC limits and upload interval; history range, point, online, and SSE heartbeat limits; and alert/outbox polling, batching, and retry limits.
+The `firebase-user` authentication provider is initialized and verifies Bearer ID tokens, resolves them to internal user UUIDs, and returns neutral `401` responses for authentication failures. Existing user routes still use the legacy JWT provider until the route migration step; the `device-token` provider and ESP32 authentication remain separate and unchanged. Optional controls, with defaults, are documented in `.env.example`: JWT lifetimes; Firebase revocation checking and user auto-provisioning; telemetry time/temperature/ADC limits and upload interval; history range, point, online, and SSE heartbeat limits; and alert/outbox polling, batching, and retry limits.
 
 ## Local startup
 
