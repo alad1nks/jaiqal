@@ -22,6 +22,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.*
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 
 class UserApplicationTest {
     @Test fun `plant and device lookups hide another users resources`() {
@@ -86,6 +87,16 @@ class UserApplicationTest {
             assertFalse(body.contains("accessToken"))
             assertFalse(body.contains("refreshToken"))
         }
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/auth/me").status)
+        val meResponse = client.get("/api/v1/auth/me") { bearerAuth("firebase-id-token") }
+        assertEquals(HttpStatusCode.OK, meResponse.status)
+        val meBody = meResponse.bodyAsText()
+        assertEquals(
+            CurrentUserResponse(owner.id.toString(), owner.email, emailVerified = true),
+            Json.decodeFromString<CurrentUserResponse>(meBody),
+        )
+        assertEquals(setOf("id", "email", "emailVerified"), Json.parseToJsonElement(meBody).jsonObject.keys)
+        assertFalse(meBody.contains("firebase-uid"))
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/plants").status)
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/plants") { bearerAuth("legacy-access-token") }.status)
         val created = client.post("/api/v1/plants") { bearerAuth("firebase-id-token");contentType(ContentType.Application.Json);setBody("""{"name":"Aloe"}""") }

@@ -76,6 +76,8 @@ curl http://localhost:8080/api/v1/plants \
 
 The future client obtains the ID Token from Firebase Authentication. The backend verifies it, maps the Firebase UID to an internal UUID, and uses that UUID for ownership checks. `/api/v1/auth/register`, `/login`, `/refresh`, and `/logout` return `410 Gone` with `LEGACY_AUTH_DISABLED`; they never issue or process application-owned tokens.
 
+`GET /api/v1/auth/me` returns the authenticated internal user's UUID, email, and email-verification status. It does not expose the Firebase UID, ID Token, auth claims, or server credentials. Health endpoints continue to return only service/database readiness state.
+
 ### Device telemetry
 
 ```bash
@@ -101,6 +103,7 @@ The device is identified only by the token. Sequences are idempotent per device;
 ## Main endpoints
 
 - Health: `GET /health/live`, `GET /health/ready`
+- Current user: `GET /api/v1/auth/me` with a Firebase ID Token
 - Disabled legacy authentication: `POST /api/v1/auth/{register,login,refresh,logout}` returns `410 Gone`
 - Plants: CRUD under `/api/v1/plants`
 - Devices: claim, list, update, calibrate, and rotate token under `/api/v1/devices`

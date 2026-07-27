@@ -30,6 +30,16 @@ fun Route.userApi(service: UserApplicationService, plantTelemetry: PlantTelemetr
             post("/logout") { call.legacyAuthGone() }
         }
         authenticate(FIREBASE_USER_AUTH) {
+            get("/auth/me") {
+                val principal = call.userPrincipal()
+                call.respond(
+                    CurrentUserResponse(
+                        id = principal.userId.toString(),
+                        email = principal.email,
+                        emailVerified = principal.emailVerified,
+                    ),
+                )
+            }
             route("/plants") {
                 get { call.respond(service.listPlants(call.userId())) }
                 post { call.respond(HttpStatusCode.Created, service.createPlant(call.userId(), call.receive<CreatePlantRequest>())) }
@@ -94,9 +104,11 @@ private suspend fun io.ktor.server.application.ApplicationCall.legacyAuthGone() 
         message = "Password authentication is no longer available; use Firebase Authentication",
     )
 
-internal fun io.ktor.server.application.ApplicationCall.userId(): UUID =
-    principal<UserPrincipal>()?.userId
+internal fun io.ktor.server.application.ApplicationCall.userPrincipal(): UserPrincipal =
+    principal<UserPrincipal>()
         ?: throw com.alad1nks.jaiqal.users.UserApiException(401, "UNAUTHORIZED", "A valid user token is required")
+
+internal fun io.ktor.server.application.ApplicationCall.userId(): UUID = userPrincipal().userId
 
 private fun io.ktor.server.application.ApplicationCall.uuidParameter(name: String): UUID =
     parameters[name]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
