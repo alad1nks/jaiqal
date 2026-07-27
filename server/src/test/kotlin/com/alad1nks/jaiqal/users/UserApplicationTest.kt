@@ -4,7 +4,6 @@ import com.alad1nks.jaiqal.api.contract.*
 import com.alad1nks.jaiqal.auth.FakeFirebaseTokenVerifier
 import com.alad1nks.jaiqal.auth.FirebaseTokenVerificationException
 import com.alad1nks.jaiqal.auth.VerifiedFirebaseToken
-import com.alad1nks.jaiqal.config.JwtConfig
 import com.alad1nks.jaiqal.devices.DeviceRecord
 import com.alad1nks.jaiqal.plants.PlantRecord
 import org.junit.Test
@@ -25,19 +24,6 @@ import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 
 class UserApplicationTest {
-    @Test fun `registration normalizes email hashes password and refresh rotates once`() {
-        val store = MemoryStore()
-        val service = service(store)
-        val auth = service.register(RegisterRequest("  USER@Example.COM ", "correct horse battery"))
-        assertEquals("user@example.com", auth.user.email)
-        assertFalse(requireNotNull(store.users.single().passwordHash).contains("correct horse battery"))
-
-        val rotated = service.refresh(RefreshRequest(auth.refreshToken))
-        assertNotEquals(auth.refreshToken, rotated.refreshToken)
-        val replay = assertFailsWith<UserApiException> { service.refresh(RefreshRequest(auth.refreshToken)) }
-        assertEquals("INVALID_REFRESH_TOKEN", replay.code)
-    }
-
     @Test fun `plant and device lookups hide another users resources`() {
         val store = MemoryStore()
         val service = service(store)
@@ -64,16 +50,15 @@ class UserApplicationTest {
     }
 
     @Test fun `Firebase routes preserve plant and device ownership by internal UUID`() = testApplication {
-        val store = MemoryStore(); val config = AppConfig(8080, DatabaseConfig("jdbc:none","x","x"), JwtConfig("issuer","audience","a-long-test-secret",60,600), emptySet(), FirebaseConfig("test-project"))
-        val service = UserApplicationService(store, config.jwt)
-        val legacyAuth = service.register(RegisterRequest("legacy@example.test", "correct horse battery"))
+        val store = MemoryStore(); val config = AppConfig(8080, DatabaseConfig("jdbc:none","x","x"), emptySet(), FirebaseConfig("test-project"))
+        val service = UserApplicationService(store, clock = clock)
         val owner = UserRecord(UUID.randomUUID(), "firebase@example.test", null, OffsetDateTime.now(clock))
         val stranger = UserRecord(UUID.randomUUID(), "stranger@example.test", null, OffsetDateTime.now(clock))
         val firebaseVerifier = FakeFirebaseTokenVerifier(
             mapOf(
                 "firebase-id-token" to Result.success(VerifiedFirebaseToken("firebase-uid", owner.email, true)),
                 "stranger-id-token" to Result.success(VerifiedFirebaseToken("stranger-uid", stranger.email, true)),
-                legacyAuth.accessToken to Result.failure(FirebaseTokenVerificationException()),
+                "legacy-access-token" to Result.failure(FirebaseTokenVerificationException()),
             ),
         )
         val identities = object : UserIdentityStore {
@@ -93,8 +78,16 @@ class UserApplicationTest {
                 firebaseUsers = FirebaseUserIdentityService(identities, true),
             )
         }
+        listOf("register", "login", "refresh", "logout").forEach { endpoint ->
+            val response = client.post("/api/v1/auth/$endpoint")
+            assertEquals(HttpStatusCode.Gone, response.status)
+            val body = response.bodyAsText()
+            assertEquals("LEGACY_AUTH_DISABLED", Json.decodeFromString<ApiErrorResponse>(body).code)
+            assertFalse(body.contains("accessToken"))
+            assertFalse(body.contains("refreshToken"))
+        }
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/plants").status)
-        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/plants") { bearerAuth(legacyAuth.accessToken) }.status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/plants") { bearerAuth("legacy-access-token") }.status)
         val created = client.post("/api/v1/plants") { bearerAuth("firebase-id-token");contentType(ContentType.Application.Json);setBody("""{"name":"Aloe"}""") }
         assertEquals(HttpStatusCode.Created, created.status)
         val plant = Json.decodeFromString<PlantResponse>(created.bodyAsText())
@@ -114,17 +107,12 @@ class UserApplicationTest {
         assertEquals(HttpStatusCode.NotFound, client.get("/api/v1/devices/${ownedDevice.id}") { bearerAuth("stranger-id-token") }.status)
     }
 
-    private fun service(store: MemoryStore) = UserApplicationService(store, JwtConfig("issuer", "audience", "a-long-test-secret", 60, 600), clock = clock)
+    private fun service(store: MemoryStore) = UserApplicationService(store, clock = clock)
     private val clock = Clock.fixed(Instant.parse("2026-07-26T12:00:00Z"), ZoneOffset.UTC)
 }
 
 private class MemoryStore : UserApplicationStore {
-    val users=mutableListOf<UserRecord>(); val sessions=mutableMapOf<String,SessionRecord>(); val plants=mutableListOf<PlantRecord>(); val devices=mutableListOf<DeviceRecord>(); var claimAvailable=false
-    override fun createUser(user:UserRecord)=if(users.any{it.email==user.email})false else {users+=user;true}
-    override fun findUserByEmail(email:String)=users.find{it.email==email}
-    override fun createSession(session:SessionRecord){sessions[session.tokenHash]=session}
-    override fun rotateSession(oldHash:String,replacement:SessionRecord):UserRecord? { val old=sessions.remove(oldHash)?:return null; val actual=replacement.copy(user=old.user);sessions[actual.tokenHash]=actual;return old.user }
-    override fun revokeSession(hash:String,userId:UUID?)=sessions[hash]?.takeIf{it.user.id==userId}?.let{sessions.remove(hash);true}?:false
+    val plants=mutableListOf<PlantRecord>(); val devices=mutableListOf<DeviceRecord>(); var claimAvailable=false
     override fun listPlants(userId:UUID)=plants.filter{it.userId==userId&&it.archivedAt==null}
     override fun findPlant(userId:UUID,plantId:UUID)=listPlants(userId).find{it.id==plantId}
     override fun createPlant(plant:PlantRecord)=plant.also{plants+=it}

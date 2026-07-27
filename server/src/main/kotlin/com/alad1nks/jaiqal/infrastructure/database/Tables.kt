@@ -71,17 +71,6 @@ internal object DeviceLatestStateTable : Table("device_latest_state") {
     override val primaryKey = PrimaryKey(deviceId)
 }
 
-internal object RefreshTokensTable : Table("refresh_tokens") {
-    val id = javaUUID("id")
-    val userId = javaUUID("user_id")
-    val tokenHash = varchar("token_hash", 255)
-    val expiresAt = timestampWithTimeZone("expires_at")
-    val createdAt = timestampWithTimeZone("created_at")
-    val revokedAt = timestampWithTimeZone("revoked_at").nullable()
-    val replacedById = javaUUID("replaced_by_id").nullable()
-    override val primaryKey = PrimaryKey(id)
-}
-
 internal object AlertRulesTable : Table("alert_rules") {
     val id = javaUUID("id")
     val plantId = javaUUID("plant_id")

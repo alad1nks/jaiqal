@@ -5,9 +5,7 @@ import com.alad1nks.jaiqal.api.contract.HealthResponse
 import com.alad1nks.jaiqal.config.AppConfig
 import com.alad1nks.jaiqal.config.DatabaseConfig
 import com.alad1nks.jaiqal.config.FirebaseConfig
-import com.alad1nks.jaiqal.config.JwtConfig
 import com.alad1nks.jaiqal.plugins.DEVICE_TOKEN_AUTH
-import com.alad1nks.jaiqal.plugins.USER_JWT_AUTH
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -115,27 +113,6 @@ class ApplicationTest {
     }
 
     @Test
-    fun userJwtProviderRejectsMissingTokenWithApiError() = testApplication {
-        application {
-            configureApplication(testConfig(), { true })
-            routing {
-                authenticate(USER_JWT_AUTH) {
-                    get("/testing/user") {
-                        call.respond(HttpStatusCode.NoContent)
-                    }
-                }
-            }
-        }
-
-        val response = client.get("/testing/user")
-        val error = json.decodeFromString<ApiErrorResponse>(response.bodyAsText())
-
-        assertEquals(HttpStatusCode.Unauthorized, response.status)
-        assertEquals("UNAUTHORIZED", error.code)
-        assertEquals(response.headers[HttpHeaders.XRequestId], error.requestId)
-    }
-
-    @Test
     fun deviceTokenProviderIsSeparateAndRejectsUnknownTokens() = testApplication {
         application {
             configureApplication(testConfig(), { true })
@@ -164,11 +141,6 @@ class ApplicationTest {
             url = "jdbc:postgresql://localhost:5432/jaiqal",
             user = "test",
             password = "not-logged",
-        ),
-        jwt = JwtConfig(
-            issuer = "jaiqal-test",
-            audience = "jaiqal-test-client",
-            secret = "test-secret-that-is-long-enough-for-hmac",
         ),
         allowedOrigins = setOf("https://app.example.test"),
         firebase = FirebaseConfig(projectId = "test-project"),

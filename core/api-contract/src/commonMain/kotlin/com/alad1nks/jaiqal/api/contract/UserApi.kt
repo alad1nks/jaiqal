@@ -2,13 +2,6 @@ package com.alad1nks.jaiqal.api.contract
 
 import kotlinx.serialization.Serializable
 
-@Serializable data class RegisterRequest(val email: String, val password: String)
-@Serializable data class LoginRequest(val email: String, val password: String)
-@Serializable data class RefreshRequest(val refreshToken: String)
-@Serializable data class LogoutRequest(val refreshToken: String)
-@Serializable data class UserResponse(val id: String, val email: String)
-@Serializable data class AuthResponse(val user: UserResponse, val accessToken: String, val refreshToken: String, val expiresInSeconds: Long)
-
 @Serializable data class CreatePlantRequest(val name: String, val species: String? = null, val imageUrl: String? = null)
 @Serializable data class UpdatePlantRequest(val name: String? = null, val species: String? = null, val imageUrl: String? = null)
 @Serializable data class PlantResponse(

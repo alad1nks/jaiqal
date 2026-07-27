@@ -24,15 +24,12 @@ import com.alad1nks.jaiqal.alerts.AlertService
 fun Route.userApi(service: UserApplicationService, plantTelemetry: PlantTelemetryService? = null, eventBus: MeasurementEventBus? = null, heartbeatSeconds: Long = 15, alerts: AlertService? = null) {
     route("/api/v1") {
         route("/auth") {
-            post("/register") { call.respond(HttpStatusCode.Created, service.register(call.receive<RegisterRequest>())) }
-            post("/login") { call.respond(service.login(call.receive<LoginRequest>())) }
-            post("/refresh") { call.respond(service.refresh(call.receive<RefreshRequest>())) }
+            post("/register") { call.legacyAuthGone() }
+            post("/login") { call.legacyAuthGone() }
+            post("/refresh") { call.legacyAuthGone() }
+            post("/logout") { call.legacyAuthGone() }
         }
         authenticate(FIREBASE_USER_AUTH) {
-            post("/auth/logout") {
-                service.logout(call.userId(), call.receive<LogoutRequest>())
-                call.respondText("", status = HttpStatusCode.NoContent)
-            }
             route("/plants") {
                 get { call.respond(service.listPlants(call.userId())) }
                 post { call.respond(HttpStatusCode.Created, service.createPlant(call.userId(), call.receive<CreatePlantRequest>())) }
@@ -89,6 +86,13 @@ fun Route.userApi(service: UserApplicationService, plantTelemetry: PlantTelemetr
         }
     }
 }
+
+private suspend fun io.ktor.server.application.ApplicationCall.legacyAuthGone() =
+    respondApiError(
+        status = HttpStatusCode.Gone,
+        code = "LEGACY_AUTH_DISABLED",
+        message = "Password authentication is no longer available; use Firebase Authentication",
+    )
 
 internal fun io.ktor.server.application.ApplicationCall.userId(): UUID =
     principal<UserPrincipal>()?.userId

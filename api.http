@@ -1,15 +1,11 @@
 @baseUrl = http://localhost:8080
-@email = gardener@example.com
-@password = correct-horse-battery-staple
 @firebaseIdToken = paste-firebase-id-token
-@refreshToken = paste-refresh-token
 @plantId = paste-plant-id
 @deviceToken = paste-device-token
 @claimCode = paste-claim-code
 
-# Protected user endpoints require a Firebase ID Token. The legacy auth endpoints
-# remain temporarily available until Step 6, but their access token is not accepted
-# by protected routes.
+# Protected user endpoints require a Firebase ID Token. Legacy password auth
+# endpoints are disabled and return 410 Gone without issuing tokens.
 # FIREBASE_AUTO_PROVISION_USERS defaults to true because the project has no
 # pre-existing users. The first valid Firebase token creates an internal user.
 
@@ -19,23 +15,17 @@ GET {{baseUrl}}/health/live
 ### Readiness
 GET {{baseUrl}}/health/ready
 
-### Legacy register (temporary; returned access token is not accepted by protected routes)
+### Disabled legacy register (410 Gone)
 POST {{baseUrl}}/api/v1/auth/register
-Content-Type: application/json
 
-{"email":"{{email}}","password":"{{password}}"}
-
-### Legacy login (temporary; scheduled for removal in Step 6)
+### Disabled legacy login (410 Gone)
 POST {{baseUrl}}/api/v1/auth/login
-Content-Type: application/json
 
-{"email":"{{email}}","password":"{{password}}"}
-
-### Rotate refresh token
+### Disabled legacy refresh (410 Gone)
 POST {{baseUrl}}/api/v1/auth/refresh
-Content-Type: application/json
 
-{"refreshToken":"{{refreshToken}}"}
+### Disabled legacy logout (410 Gone)
+POST {{baseUrl}}/api/v1/auth/logout
 
 ### Create plant
 POST {{baseUrl}}/api/v1/plants

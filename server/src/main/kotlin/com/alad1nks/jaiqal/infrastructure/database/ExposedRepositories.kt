@@ -1,7 +1,5 @@
 package com.alad1nks.jaiqal.infrastructure.database
 
-import com.alad1nks.jaiqal.auth.RefreshTokenRecord
-import com.alad1nks.jaiqal.auth.RefreshTokenRepository
 import com.alad1nks.jaiqal.devices.DeviceRecord
 import com.alad1nks.jaiqal.devices.DeviceRepository
 import com.alad1nks.jaiqal.plants.PlantRecord
@@ -78,18 +76,10 @@ class ExposedMeasurementRepository(private val database: Database) : Measurement
     }
 }
 
-class ExposedRefreshTokenRepository(private val database: Database) : RefreshTokenRepository {
-    override fun create(token: RefreshTokenRecord) = transaction(database) { RefreshTokensTable.insert { it.from(token) }; token }
-    override fun findByHash(tokenHash: String) = transaction(database) { RefreshTokensTable.selectAll().where { RefreshTokensTable.tokenHash eq tokenHash }.singleOrNull()?.toRefreshToken() }
-}
-
-
 private fun org.jetbrains.exposed.v1.core.statements.UpdateBuilder<*>.from(v: UserRecord) { this[UsersTable.id]=v.id; this[UsersTable.email]=v.email; this[UsersTable.passwordHash]=v.passwordHash; this[UsersTable.createdAt]=v.createdAt }
 private fun org.jetbrains.exposed.v1.core.statements.UpdateBuilder<*>.from(v: PlantRecord) { this[PlantsTable.id]=v.id; this[PlantsTable.userId]=v.userId; this[PlantsTable.name]=v.name; this[PlantsTable.species]=v.species; this[PlantsTable.imageUrl]=v.imageUrl; this[PlantsTable.createdAt]=v.createdAt; this[PlantsTable.archivedAt]=v.archivedAt }
 private fun org.jetbrains.exposed.v1.core.statements.UpdateBuilder<*>.from(v: DeviceRecord) { this[DevicesTable.id]=v.id; this[DevicesTable.plantId]=v.plantId; this[DevicesTable.name]=v.name; this[DevicesTable.tokenHash]=v.tokenHash; this[DevicesTable.firmwareVersion]=v.firmwareVersion; this[DevicesTable.lastSeenAt]=v.lastSeenAt; this[DevicesTable.soilDryRaw]=v.soilDryRaw; this[DevicesTable.soilWetRaw]=v.soilWetRaw; this[DevicesTable.disabledAt]=v.disabledAt; this[DevicesTable.createdAt]=v.createdAt }
-private fun org.jetbrains.exposed.v1.core.statements.UpdateBuilder<*>.from(v: RefreshTokenRecord) { this[RefreshTokensTable.id]=v.id; this[RefreshTokensTable.userId]=v.userId; this[RefreshTokensTable.tokenHash]=v.tokenHash; this[RefreshTokensTable.expiresAt]=v.expiresAt; this[RefreshTokensTable.createdAt]=v.createdAt; this[RefreshTokensTable.revokedAt]=v.revokedAt; this[RefreshTokensTable.replacedById]=v.replacedById }
 private fun ResultRow.toUser() = UserRecord(this[UsersTable.id],this[UsersTable.email],this[UsersTable.passwordHash],this[UsersTable.createdAt])
 private fun ResultRow.toPlant() = PlantRecord(this[PlantsTable.id],this[PlantsTable.userId],this[PlantsTable.name],this[PlantsTable.species],this[PlantsTable.imageUrl],this[PlantsTable.createdAt],this[PlantsTable.archivedAt])
 private fun ResultRow.toDevice() = DeviceRecord(this[DevicesTable.id],this[DevicesTable.plantId],this[DevicesTable.name],this[DevicesTable.tokenHash],this[DevicesTable.firmwareVersion],this[DevicesTable.lastSeenAt],this[DevicesTable.soilDryRaw],this[DevicesTable.soilWetRaw],this[DevicesTable.disabledAt],this[DevicesTable.createdAt])
 private fun ResultRow.toMeasurement(): MeasurementRecord { val m=NewMeasurement(this[MeasurementsTable.deviceId],this[MeasurementsTable.sequence],this[MeasurementsTable.measuredAt],this[MeasurementsTable.receivedAt],this[MeasurementsTable.soilMoistureRaw],this[MeasurementsTable.soilMoisturePercent],this[MeasurementsTable.airTemperatureCelsius],this[MeasurementsTable.airHumidityPercent],this[MeasurementsTable.lightRaw],this[MeasurementsTable.extra].toString()); return MeasurementRecord(this[MeasurementsTable.id],m) }
-private fun ResultRow.toRefreshToken() = RefreshTokenRecord(this[RefreshTokensTable.id],this[RefreshTokensTable.userId],this[RefreshTokensTable.tokenHash],this[RefreshTokensTable.expiresAt],this[RefreshTokensTable.createdAt],this[RefreshTokensTable.revokedAt],this[RefreshTokensTable.replacedById])

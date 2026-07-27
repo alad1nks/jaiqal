@@ -8,7 +8,6 @@ import com.alad1nks.jaiqal.auth.VerifiedFirebaseToken
 import com.alad1nks.jaiqal.config.AppConfig
 import com.alad1nks.jaiqal.config.DatabaseConfig
 import com.alad1nks.jaiqal.config.FirebaseConfig
-import com.alad1nks.jaiqal.config.JwtConfig
 import com.alad1nks.jaiqal.plugins.FIREBASE_USER_AUTH
 import com.alad1nks.jaiqal.users.FirebaseIdentityConflictException
 import com.alad1nks.jaiqal.users.FirebaseUserIdentityService
@@ -165,7 +164,6 @@ class FirebaseAuthenticationTest {
     private fun testConfig() = AppConfig(
         httpPort = 8080,
         database = DatabaseConfig("jdbc:none", "test", "not-logged"),
-        jwt = JwtConfig("issuer", "audience", "test-secret-that-is-long-enough-for-hmac"),
         allowedOrigins = emptySet(),
         firebase = FirebaseConfig("test-project"),
     )
