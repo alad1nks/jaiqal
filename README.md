@@ -33,7 +33,7 @@ Firebase Admin uses Application Default Credentials. In Google-hosted environmen
 
 The project has no pre-existing users, so `FIREBASE_AUTO_PROVISION_USERS` defaults to `true`. The first valid Firebase token atomically creates a passwordless internal `users` row and its identity; tokens without an email are supported. Set the flag to `false` to refuse unknown Firebase UIDs without creating an account.
 
-The `firebase-user` authentication provider is initialized and verifies Bearer ID tokens, resolves them to internal user UUIDs, and returns neutral `401` responses for authentication failures. Existing user routes still use the legacy JWT provider until the route migration step; the `device-token` provider and ESP32 authentication remain separate and unchanged. Optional controls, with defaults, are documented in `.env.example`: JWT lifetimes; Firebase revocation checking and user auto-provisioning; telemetry time/temperature/ADC limits and upload interval; history range, point, online, and SSE heartbeat limits; and alert/outbox polling, batching, and retry limits.
+The `firebase-user` authentication provider verifies Bearer ID tokens, resolves them to internal user UUIDs, and returns neutral `401` responses for authentication failures. All protected user routes use this provider. The `device-token` provider and ESP32 authentication remain separate and unchanged. Optional controls, with defaults, are documented in `.env.example`: JWT lifetimes; Firebase revocation checking and user auto-provisioning; telemetry time/temperature/ADC limits and upload interval; history range, point, online, and SSE heartbeat limits; and alert/outbox polling, batching, and retry limits.
 
 ## Local startup
 
@@ -67,15 +67,14 @@ The schema covers users and external identities, plants, devices, one-time devic
 
 An IntelliJ HTTP Client collection with health, authentication, plant, claiming, telemetry, history, and alert examples is available at [`api.http`](api.http).
 
-### Login
+### Firebase-authenticated request
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"gardener@example.com","password":"correct-horse-battery-staple"}'
+curl http://localhost:8080/api/v1/plants \
+  -H 'Authorization: Bearer paste-firebase-id-token'
 ```
 
-The response contains a short-lived bearer access token and a rotating opaque refresh token. Calling `/api/v1/auth/refresh` consumes the old refresh token; replay is rejected.
+The future client obtains the ID Token from Firebase Authentication. The backend verifies it, maps the Firebase UID to an internal UUID, and uses that UUID for ownership checks. Legacy register/login/refresh endpoints remain temporarily present until the token-issuance removal step, but their access tokens are no longer accepted by protected routes.
 
 ### Device telemetry
 
@@ -102,14 +101,14 @@ The device is identified only by the token. Sequences are idempotent per device;
 ## Main endpoints
 
 - Health: `GET /health/live`, `GET /health/ready`
-- Authentication: `POST /api/v1/auth/{register,login,refresh,logout}`
+- Legacy authentication, temporary until removal: `POST /api/v1/auth/{register,login,refresh,logout}`
 - Plants: CRUD under `/api/v1/plants`
 - Devices: claim, list, update, calibrate, and rotate token under `/api/v1/devices`
 - Telemetry ingestion: `POST /api/device/v1/measurements` and `/batch`
 - Reads: `/api/v1/plants/{plantId}/{latest,history,stream}`; history intervals are `raw`, `5m`, `1h`, and `1d`, and stream is SSE
 - Alerts: rules, history, and acknowledgement under `/api/v1/plants/{plantId}`
 
-All user-owned resources are scoped to the JWT subject. Cross-user lookups return 404 where possible to avoid disclosing resource existence.
+All user-owned resources are scoped to the internal UUID from `UserPrincipal`. Cross-user lookups return 404 where possible to avoid disclosing resource existence.
 
 ## Tests and verification
 

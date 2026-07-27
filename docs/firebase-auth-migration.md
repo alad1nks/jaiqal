@@ -201,5 +201,21 @@ Firebase/БД в ответ не попадают. Неожиданные инф
 
 Production wiring использует singleton verifier из Firebase Admin и
 `JdbcUserIdentityStore`. Provider `device-token` остаётся отдельным и принимает
-только схему `Device`. Пользовательские маршруты пока остаются на `user-jwt` — их
-переключение выполняется на шаге 5.
+только схему `Device`. На момент завершения шага 4 пользовательские маршруты ещё
+оставались на `user-jwt`; их текущее состояние после переключения описано ниже.
+
+## Статус реализации: шаг 5
+
+Все существующие защищённые пользовательские маршруты переведены с `user-jwt` на
+`firebase-user`: растения, пользовательские устройства, latest/history/SSE
+телеметрия, alert rules, история alerts и acknowledgement. Logout также находится
+под Firebase provider до отключения всего legacy auth API на шаге 6.
+
+`ApplicationCall.userId()` теперь читает только internal UUID из `UserPrincipal`;
+Firebase UID не передаётся в repositories или ownership checks. Благодаря этому
+существующие фильтры по `plants.user_id`, связи устройств и 404-hiding не менялись.
+Собственный legacy JWT больше не принимается защищёнными маршрутами.
+
+В текущем API нет отдельных profile/settings routes или пользовательского endpoint
+для notification outbox, поэтому переключать там нечего. Device ingestion routes
+по-прежнему используют отдельный `device-token` и схему `Authorization: Device`.

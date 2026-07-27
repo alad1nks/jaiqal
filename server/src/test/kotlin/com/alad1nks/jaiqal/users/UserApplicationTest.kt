@@ -1,6 +1,9 @@
 package com.alad1nks.jaiqal.users
 
 import com.alad1nks.jaiqal.api.contract.*
+import com.alad1nks.jaiqal.auth.FakeFirebaseTokenVerifier
+import com.alad1nks.jaiqal.auth.FirebaseTokenVerificationException
+import com.alad1nks.jaiqal.auth.VerifiedFirebaseToken
 import com.alad1nks.jaiqal.config.JwtConfig
 import com.alad1nks.jaiqal.devices.DeviceRecord
 import com.alad1nks.jaiqal.plants.PlantRecord
@@ -60,19 +63,55 @@ class UserApplicationTest {
         assertTrue(rotated.token.length >= 64)
     }
 
-    @Test fun `auth and plant routes require and honor JWT ownership`() = testApplication {
+    @Test fun `Firebase routes preserve plant and device ownership by internal UUID`() = testApplication {
         val store = MemoryStore(); val config = AppConfig(8080, DatabaseConfig("jdbc:none","x","x"), JwtConfig("issuer","audience","a-long-test-secret",60,600), emptySet(), FirebaseConfig("test-project"))
         val service = UserApplicationService(store, config.jwt)
-        application { configureApplication(config, { true }, userApplication = service) }
-        val registration = client.post("/api/v1/auth/register") { contentType(ContentType.Application.Json); setBody("""{"email":"route@example.com","password":"correct horse battery"}""") }
-        assertEquals(HttpStatusCode.Created, registration.status)
-        val auth = Json.decodeFromString<AuthResponse>(registration.bodyAsText())
+        val legacyAuth = service.register(RegisterRequest("legacy@example.test", "correct horse battery"))
+        val owner = UserRecord(UUID.randomUUID(), "firebase@example.test", null, OffsetDateTime.now(clock))
+        val stranger = UserRecord(UUID.randomUUID(), "stranger@example.test", null, OffsetDateTime.now(clock))
+        val firebaseVerifier = FakeFirebaseTokenVerifier(
+            mapOf(
+                "firebase-id-token" to Result.success(VerifiedFirebaseToken("firebase-uid", owner.email, true)),
+                "stranger-id-token" to Result.success(VerifiedFirebaseToken("stranger-uid", stranger.email, true)),
+                legacyAuth.accessToken to Result.failure(FirebaseTokenVerificationException()),
+            ),
+        )
+        val identities = object : UserIdentityStore {
+            override fun findUserByIdentity(provider: String, externalSubject: String) = when (externalSubject) {
+                "firebase-uid" -> owner
+                "stranger-uid" -> stranger
+                else -> null
+            }
+            override fun createUserWithIdentity(user: UserRecord, identity: UserIdentityRecord) = error("identity already exists")
+        }
+        application {
+            configureApplication(
+                config,
+                { true },
+                userApplication = service,
+                firebaseTokenVerifier = firebaseVerifier,
+                firebaseUsers = FirebaseUserIdentityService(identities, true),
+            )
+        }
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/plants").status)
-        val created = client.post("/api/v1/plants") { bearerAuth(auth.accessToken);contentType(ContentType.Application.Json);setBody("""{"name":"Aloe"}""") }
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/plants") { bearerAuth(legacyAuth.accessToken) }.status)
+        val created = client.post("/api/v1/plants") { bearerAuth("firebase-id-token");contentType(ContentType.Application.Json);setBody("""{"name":"Aloe"}""") }
         assertEquals(HttpStatusCode.Created, created.status)
         val plant = Json.decodeFromString<PlantResponse>(created.bodyAsText())
         assertEquals("Aloe", plant.name)
-        assertEquals(HttpStatusCode.OK, client.get("/api/v1/plants/${plant.id}") { bearerAuth(auth.accessToken) }.status)
+        assertEquals(owner.id, store.plants.single().userId)
+        assertEquals(HttpStatusCode.OK, client.get("/api/v1/plants/${plant.id}") { bearerAuth("firebase-id-token") }.status)
+        assertEquals(HttpStatusCode.NotFound, client.get("/api/v1/plants/${plant.id}") { bearerAuth("stranger-id-token") }.status)
+
+        val ownedDevice = DeviceRecord(UUID.randomUUID(), UUID.fromString(plant.id), "Owned sensor", "hash", createdAt = OffsetDateTime.now(clock))
+        val strangerPlant = PlantRecord(UUID.randomUUID(), stranger.id, "Private", createdAt = OffsetDateTime.now(clock))
+        val strangerDevice = DeviceRecord(UUID.randomUUID(), strangerPlant.id, "Other sensor", "hash", createdAt = OffsetDateTime.now(clock))
+        store.plants += strangerPlant
+        store.devices += listOf(ownedDevice, strangerDevice)
+        val devices = client.get("/api/v1/devices") { bearerAuth("firebase-id-token") }
+        assertEquals(HttpStatusCode.OK, devices.status)
+        assertEquals(listOf(ownedDevice.id.toString()), Json.decodeFromString<List<DeviceResponse>>(devices.bodyAsText()).map(DeviceResponse::id))
+        assertEquals(HttpStatusCode.NotFound, client.get("/api/v1/devices/${ownedDevice.id}") { bearerAuth("stranger-id-token") }.status)
     }
 
     private fun service(store: MemoryStore) = UserApplicationService(store, JwtConfig("issuer", "audience", "a-long-test-secret", 60, 600), clock = clock)
