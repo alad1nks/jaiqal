@@ -121,7 +121,7 @@ All user-owned resources are scoped to the internal UUID from `UserPrincipal`. C
 ./gradlew :server:build
 ```
 
-The suite combines pure unit tests, Ktor route tests, and PostgreSQL Testcontainers integration tests. It covers authentication/refresh rotation and ownership boundaries, device authentication, telemetry validation/idempotency/calibration, latest-state ordering and history aggregation, alert duration/deduplication/recovery, migrations, and outbox retry safety.
+The suite combines pure unit tests, Ktor route tests, and PostgreSQL Testcontainers integration tests. It covers Firebase verification and identity provisioning, concurrent first login, ownership boundaries, device authentication, telemetry validation/idempotency/calibration, latest-state ordering and history aggregation, alert duration/deduplication/recovery, migrations, and outbox retry safety. Firebase tests use a fake verifier and never call the real service.
 
 ## Client applications
 

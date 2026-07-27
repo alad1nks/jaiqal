@@ -17,6 +17,9 @@ import com.alad1nks.jaiqal.configureApplication
 import com.alad1nks.jaiqal.config.AppConfig
 import com.alad1nks.jaiqal.config.DatabaseConfig
 import com.alad1nks.jaiqal.config.FirebaseConfig
+import com.alad1nks.jaiqal.telemetry.HistoryRequest
+import com.alad1nks.jaiqal.telemetry.PlantTelemetryRepository
+import com.alad1nks.jaiqal.telemetry.PlantTelemetryService
 import io.ktor.client.request.*
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.*
@@ -55,6 +58,32 @@ class UserApplicationTest {
         val service = UserApplicationService(store, clock = clock)
         val owner = UserRecord(UUID.randomUUID(), "firebase@example.test", null, OffsetDateTime.now(clock))
         val stranger = UserRecord(UUID.randomUUID(), "stranger@example.test", null, OffsetDateTime.now(clock))
+        val telemetryDeviceId = UUID.randomUUID()
+        val telemetry = PlantTelemetryService(
+            object : PlantTelemetryRepository {
+                override fun latest(userId: UUID, plantId: UUID) =
+                    store.findPlant(userId, plantId)?.let {
+                        PlantLatestResponse(
+                            plantId = plantId.toString(),
+                            deviceId = telemetryDeviceId.toString(),
+                            measuredAt = OffsetDateTime.now(clock).toString(),
+                            receivedAt = OffsetDateTime.now(clock).toString(),
+                            soilMoisturePercent = 42.0,
+                            online = true,
+                            calibrated = true,
+                        )
+                    }
+
+                override fun history(userId: UUID, plantId: UUID, request: HistoryRequest, limit: Int) =
+                    store.findPlant(userId, plantId)?.let {
+                        listOf(PlantHistoryPoint(OffsetDateTime.now(clock).toString(), soilMoisturePercent = 42.0))
+                    }
+
+                override fun ownsPlant(userId: UUID, plantId: UUID) = store.findPlant(userId, plantId) != null
+            },
+            config.history,
+            clock,
+        )
         val firebaseVerifier = FakeFirebaseTokenVerifier(
             mapOf(
                 "firebase-id-token" to Result.success(VerifiedFirebaseToken("firebase-uid", owner.email, true)),
@@ -75,6 +104,7 @@ class UserApplicationTest {
                 config,
                 { true },
                 userApplication = service,
+                plantTelemetry = telemetry,
                 firebaseTokenVerifier = firebaseVerifier,
                 firebaseUsers = FirebaseUserIdentityService(identities, true),
             )
@@ -112,10 +142,21 @@ class UserApplicationTest {
         val strangerDevice = DeviceRecord(UUID.randomUUID(), strangerPlant.id, "Other sensor", "hash", createdAt = OffsetDateTime.now(clock))
         store.plants += strangerPlant
         store.devices += listOf(ownedDevice, strangerDevice)
+        val plants = client.get("/api/v1/plants") { bearerAuth("firebase-id-token") }
+        assertEquals(HttpStatusCode.OK, plants.status)
+        assertEquals(listOf(plant.id), Json.decodeFromString<List<PlantResponse>>(plants.bodyAsText()).map(PlantResponse::id))
         val devices = client.get("/api/v1/devices") { bearerAuth("firebase-id-token") }
         assertEquals(HttpStatusCode.OK, devices.status)
         assertEquals(listOf(ownedDevice.id.toString()), Json.decodeFromString<List<DeviceResponse>>(devices.bodyAsText()).map(DeviceResponse::id))
         assertEquals(HttpStatusCode.NotFound, client.get("/api/v1/devices/${ownedDevice.id}") { bearerAuth("stranger-id-token") }.status)
+
+        val latest = client.get("/api/v1/plants/${plant.id}/latest") { bearerAuth("firebase-id-token") }
+        assertEquals(HttpStatusCode.OK, latest.status)
+        assertEquals(42.0, Json.decodeFromString<PlantLatestResponse>(latest.bodyAsText()).soilMoisturePercent)
+        val history = client.get("/api/v1/plants/${plant.id}/history") { bearerAuth("firebase-id-token") }
+        assertEquals(HttpStatusCode.OK, history.status)
+        assertEquals(1, Json.decodeFromString<PlantHistoryResponse>(history.bodyAsText()).points.size)
+        assertEquals(HttpStatusCode.NotFound, client.get("/api/v1/plants/${plant.id}/latest") { bearerAuth("stranger-id-token") }.status)
     }
 
     private fun service(store: MemoryStore) = UserApplicationService(store, clock = clock)
