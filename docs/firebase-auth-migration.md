@@ -1,8 +1,8 @@
 # Миграция пользовательской аутентификации на Firebase Authentication
 
-## Текущий поток аутентификации
+## Исходный поток аутентификации до миграции
 
-Публичные `POST /api/v1/auth/register` и `POST /api/v1/auth/login` принимают email и
+До миграции публичные `POST /api/v1/auth/register` и `POST /api/v1/auth/login` принимали email и
 пароль. `UserApplicationService` нормализует email, хеширует пароль
 Argon2id и создаёт `users.id` как UUID. `password_hash` обязателен в миграции
 V1, `UsersTable`, `UserRecord` и JDBC-mapping.
@@ -26,7 +26,7 @@ Ktor provider `user-jwt` проверяет HMAC-подпись, issuer и audie
 Все пользовательские routes размещены в `authenticate(USER_JWT_AUTH)`; исключение —
 публичные register/login/refresh.
 
-Активный production path для users — `UserApplicationService` +
+Исходный production path для users был построен на `UserApplicationService` +
 `JdbcUserApplicationStore`. Отдельные `UserRepository`, `RefreshTokenRepository` и их
 Exposed-реализации существуют, но не подключены в `Application.kt` к текущему
 auth flow.
@@ -75,15 +75,15 @@ Device-аутентификация отделена от user auth:
 Сервер запускает Flyway до подъёма HTTP. Применённые V1–V3 нельзя менять;
 поддержка Firebase должна появиться в новой numbered migration.
 
-## Конфигурация
+## Исходная конфигурация до миграции
 
-Сейчас user auth требует `JWT_ISSUER`, `JWT_AUDIENCE`, `JWT_SECRET`; сроки
+До миграции user auth требовал `JWT_ISSUER`, `JWT_AUDIENCE`, `JWT_SECRET`; сроки
 access/refresh задаются опциональными `JWT_ACCESS_TOKEN_SECONDS` и
 `JWT_REFRESH_TOKEN_SECONDS`. Прочая конфигурация не связана с user auth:
 `HTTP_PORT`, database credentials, `ALLOWED_ORIGINS`, telemetry/history/alert/outbox controls.
 
-В будущем Firebase-потоке JWT-переменные потеряют смысл после полного
-отключения legacy auth. Их нужно заменить на `FIREBASE_PROJECT_ID`, Application
+В Firebase-потоке JWT-переменные удалены после полного отключения legacy auth.
+Их заменили `FIREBASE_PROJECT_ID`, Application
 Default Credentials / `GOOGLE_APPLICATION_CREDENTIALS`, `FIREBASE_AUTO_PROVISION_USERS` и
 `FIREBASE_CHECK_REVOKED_TOKENS`. На шаге 1 конфигурация не изменяется.
 
@@ -132,9 +132,9 @@ principal с найденным internal UUID. Именно этот UUID пер
 миграций в текущий шаг не входит: по плану задачи оно выполняется после перевода
 маршрутов на Firebase.
 
-## Тестовое покрытие и пробелы
+## Исходное тестовое покрытие и пробелы
 
-Сейчас проверяются:
+До миграции проверялись:
 
 - Argon2id password hashing, email normalization, refresh rotation/replay;
 - Ktor JWT guard и доступ к plant с выданным access token;
@@ -260,3 +260,17 @@ PostgreSQL Testcontainer проверяет конкурентный первы�
 растений и устройств, чтение latest/history после Firebase-аутентификации,
 неизменный Device Token ingestion и отказ неверному device token. Legacy auth
 endpoints проверяются на `410 Gone` и отсутствие собственных access/refresh tokens.
+
+## Статус реализации: шаги 9–10
+
+README и `.env.example` документируют Firebase project ID, ADC, auto-provisioning
+и revocation checking. Для локального Docker Compose добавлен отдельный read-only
+credential override, а production deployment инструкция описывает workload
+identity, secret mounts, ручную настройку Firebase, rollout и rollback без очистки
+данных.
+
+CI запускает KMP API-contract tests, server tests с PostgreSQL Testcontainers,
+server build и Android lint. Тесты используют fake verifier и не требуют Firebase
+credentials или доступа к реальному Firebase. В локальной финальной проверке
+окруженческие ограничения (Docker/Chrome) должны сообщаться явно, а не обходиться
+скрытым пропуском тестов.

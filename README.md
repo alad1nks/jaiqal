@@ -29,6 +29,13 @@ cp .env.example .env
 
 The required variables are `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD`, and `FIREBASE_PROJECT_ID`. `HTTP_PORT` defaults to `8080`; `ALLOWED_ORIGINS` is a comma-separated allowlist of complete origins and may be empty.
 
+| Firebase variable | Purpose |
+| --- | --- |
+| `FIREBASE_PROJECT_ID` | Firebase project whose ID Tokens are accepted. |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Optional path to an external service-account JSON for local/non-workload-identity environments. |
+| `FIREBASE_AUTO_PROVISION_USERS` | Allow creation of an internal user after the first valid token; defaults to `true`. |
+| `FIREBASE_CHECK_REVOKED_TOKENS` | Check token revocation and disabled users remotely; defaults to `false`. |
+
 Firebase Admin uses Application Default Credentials. In Google-hosted environments, use workload identity. For local JVM execution, set `GOOGLE_APPLICATION_CREDENTIALS` to a service-account JSON stored outside this repository. Startup fails before opening the HTTP port if the project ID or ADC is unavailable. `FIREBASE_CHECK_REVOKED_TOKENS` defaults to `false`; enabling it adds the Firebase remote check for token revocation and disabled users.
 
 The project has no pre-existing users, so `FIREBASE_AUTO_PROVISION_USERS` defaults to `true`. The first valid Firebase token atomically creates a passwordless internal `users` row and its identity; tokens without an email are supported. Set the flag to `false` to refuse unknown Firebase UIDs without creating an account.
@@ -37,10 +44,13 @@ The `firebase-user` authentication provider verifies Bearer ID tokens, resolves 
 
 ## Local startup
 
-Start PostgreSQL and the server, rebuilding the image when sources change:
+With workload identity/Application Default Credentials available to the container,
+start PostgreSQL and the server as usual. For a local service-account file, set
+`FIREBASE_CREDENTIALS_FILE` to its absolute host path and include the read-only
+credentials override:
 
 ```bash
-docker compose up --build
+docker compose -f compose.yaml -f compose.firebase.yaml up --build
 curl http://localhost:8080/health/live
 curl http://localhost:8080/health/ready
 ```
@@ -61,7 +71,7 @@ Flyway migrations live in `server/src/main/resources/db/migration`. Server start
 ./gradlew :server:run
 ```
 
-The schema covers users and external identities, plants, devices, one-time device claim codes, measurements and latest state, rotating refresh tokens, alert rules/events/processing state, and the reliable notification outbox. Firebase identities map `(provider, Firebase UID)` to the internal user UUID; existing foreign-key structure is preserved.
+The schema covers users and external identities, plants, devices, one-time device claim codes, measurements and latest state, alert rules/events/processing state, and the reliable notification outbox. The legacy refresh-token table remains physically present but is no longer used by the application. Firebase identities map `(provider, Firebase UID)` to the internal user UUID; existing foreign-key structure is preserved.
 
 ## API quick start
 
@@ -77,6 +87,22 @@ curl http://localhost:8080/api/v1/plants \
 The future client obtains the ID Token from Firebase Authentication. The backend verifies it, maps the Firebase UID to an internal UUID, and uses that UUID for ownership checks. `/api/v1/auth/register`, `/login`, `/refresh`, and `/logout` return `410 Gone` with `LEGACY_AUTH_DISABLED`; they never issue or process application-owned tokens.
 
 `GET /api/v1/auth/me` returns the authenticated internal user's UUID, email, and email-verification status. It does not expose the Firebase UID, ID Token, auth claims, or server credentials. Health endpoints continue to return only service/database readiness state.
+
+### Manual Firebase setup
+
+1. Create or select a Firebase project.
+2. Enable the required sign-in methods in Firebase Authentication.
+3. Create credentials for the server environment when workload identity is unavailable.
+4. Configure Application Default Credentials or `GOOGLE_APPLICATION_CREDENTIALS`.
+5. Set `FIREBASE_PROJECT_ID` to the selected project.
+6. Restart or redeploy the server.
+7. Obtain a test Firebase ID Token outside the backend through a client or Firebase tooling.
+8. Call `GET /api/v1/auth/me` with that token and verify the internal user UUID.
+
+The backend only verifies Firebase ID Tokens. It must not accept an email/password
+to sign users into Firebase; that flow belongs in the client. See
+[`docs/production-deployment.md`](docs/production-deployment.md) for credential,
+rollout, rollback, and production hardening guidance.
 
 ### Device telemetry
 
