@@ -87,24 +87,11 @@ access/refresh задаются опциональными `JWT_ACCESS_TOKEN_SEC
 Default Credentials / `GOOGLE_APPLICATION_CREDENTIALS`, `FIREBASE_AUTO_PROVISION_USERS` и
 `FIREBASE_CHECK_REVOKED_TOKENS`. На шаге 1 конфигурация не изменяется.
 
-## Существующие пользователи
+## Исходное состояние пользователей
 
-В source-controlled migrations нет seed-пользователей. Unit-тесты используют
-in-memory store, integration-тесты создают временные fixture-записи в одноразовом
-Testcontainers PostgreSQL. Снимка production/staging/local named-volume в Git нет,
-поэтому репозиторий не доказывает, что таблица `users` пуста. Локальную Compose-базу
-проверить в текущей среде нельзя: Docker CLI не установлен.
-
-До включения auto-provisioning нужно в каждом persistent environment явно проверить:
-
-```sql
-SELECT count(*) AS users FROM users;
-SELECT count(*) AS active_refresh_tokens
-FROM refresh_tokens
-WHERE revoked_at IS NULL AND expires_at > now();
-```
-
-До такой проверки безопасно считать, что legacy-пользователи могут существовать.
+В проекте никогда не было реальных пользователей. Таблица `users` не содержит
+аккаунтов, которые нужно переносить или связывать с Firebase вручную. Записи,
+создаваемые unit- и integration-тестами, являются только одноразовыми фикстурами.
 
 ## Целевое сопоставление Firebase UID и internal UUID
 
@@ -120,20 +107,15 @@ WHERE revoked_at IS NULL AND expires_at > now();
 principal с найденным internal UUID. Именно этот UUID передаётся в
 существующую business/ownership logic.
 
-Безопасная стратегия rollout:
+Стратегия rollout:
 
-1. По умолчанию `FIREBASE_AUTO_PROVISION_USERS=false`.
-2. Существующие users связываются с Firebase UID только явным
-   административным/миграционным механизмом. Совпадение email само по себе
-   никогда не создаёт identity.
-3. Если inventory подтвердит отсутствие реальных users, auto-provisioning можно
-   явно включить. Первый валидный UID атомарно создаст `users` и
-   `user_identities`; unique constraints должны сделать повторные/конкурентные первые
-   входы idempotent.
-4. Новая миграция должна сделать `password_hash` nullable для Firebase-only users.
-   Поскольку verified Firebase token допускает `email = null`, нужно до шага 3 явно
-   выбрать одну политику: либо разрешить nullable `users.email`, либо отклонять
-   auto-provisioning token без email. Автоматически подставлять вымышленный email нельзя.
+1. По умолчанию `FIREBASE_AUTO_PROVISION_USERS=true`.
+2. Первый валидный Firebase UID атомарно создаёт `users` и `user_identities`;
+   unique constraints делают повторные и конкурентные первые входы idempotent.
+3. `password_hash` и `email` nullable для Firebase-only users, поэтому токен без
+   email поддерживается без создания вымышленного адреса.
+4. Флаг можно установить в `false`, чтобы временно запрещать создание новых
+   внутренних аккаунтов; неизвестный UID тогда получает отказ.
 
 ## Компоненты миграции
 
@@ -147,8 +129,8 @@ principal с найденным internal UUID. Именно этот UUID пер
 | | Provider `device-token`, `DevicePrincipal`, device token hashes и ESP32 API |
 
 Физическое удаление `password_hash`, `refresh_tokens`, legacy DTO/кода и старых
-миграций в текущую миграцию не входит. До подтверждённого cutover эти схемы и
-данные должны оставаться на месте.
+миграций в текущий шаг не входит: по плану задачи оно выполняется после перевода
+маршрутов на Firebase.
 
 ## Тестовое покрытие и пробелы
 
@@ -183,3 +165,22 @@ project ID или ADC завершает запуск понятной ошиб�
 На этом шаге verifier намеренно не подключён к Ktor user provider. Legacy `user-jwt`,
 маршруты и выдача собственных токенов остаются активными до шагов 4–6; Device Token
 не изменён.
+
+## Статус реализации: шаг 3
+
+Миграция `V4__firebase_user_identities.sql` добавляет отдельную таблицу
+`user_identities`. Уникальные ограничения на `(provider, external_subject)` и
+`(user_id, provider)` гарантируют не более одной внутренней учётной записи на
+Firebase UID и не более одной Firebase identity на internal UUID. `users.id`, все
+его внешние ключи, legacy `password_hash` и `refresh_tokens` сохранены.
+
+Для Firebase-only пользователей `users.password_hash` и `users.email` стали
+nullable. Это позволяет создавать пользователя из валидного токена без пароля и
+не выдумывать email, если Firebase provider его не вернул. Legacy password login
+по-прежнему работает только для записи с непустым password hash.
+
+`FIREBASE_AUTO_PROVISION_USERS=true` — значение по умолчанию, поскольку переносить
+существующих пользователей не требуется. Создание `users` и `user_identities`
+выполняется в одной транзакции. Конкурентный первый вход с тем же UID возвращает
+запись победившей транзакции. При явном выключении auto-provisioning неизвестный
+UID получает понятный отказ.

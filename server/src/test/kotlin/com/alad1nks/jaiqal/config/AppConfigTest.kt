@@ -23,6 +23,7 @@ class AppConfigTest {
         assertEquals("issuer", config.jwt.issuer)
         assertEquals("jaiqal-test", config.firebase.projectId)
         assertEquals(false, config.firebase.checkRevokedTokens)
+        assertEquals(true, config.firebase.autoProvisionUsers)
     }
 
     @Test
@@ -58,6 +59,17 @@ class AppConfigTest {
         assertEquals(true, AppConfig.fromEnvironment(enabled::get).firebase.checkRevokedTokens)
 
         val invalid = requiredEnvironment() + ("FIREBASE_CHECK_REVOKED_TOKENS" to "yes")
+        assertFailsWith<IllegalStateException> {
+            AppConfig.fromEnvironment(invalid::get)
+        }
+    }
+
+    @Test
+    fun readsStrictFirebaseAutoProvisioningFlag() {
+        val disabled = requiredEnvironment() + ("FIREBASE_AUTO_PROVISION_USERS" to "false")
+        assertEquals(false, AppConfig.fromEnvironment(disabled::get).firebase.autoProvisionUsers)
+
+        val invalid = requiredEnvironment() + ("FIREBASE_AUTO_PROVISION_USERS" to "yes")
         assertFailsWith<IllegalStateException> {
             AppConfig.fromEnvironment(invalid::get)
         }

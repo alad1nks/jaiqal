@@ -9,8 +9,17 @@ import org.jetbrains.exposed.v1.json.jsonb
 
 internal object UsersTable : Table("users") {
     val id = javaUUID("id")
-    val email = varchar("email", 320)
-    val passwordHash = varchar("password_hash", 255)
+    val email = varchar("email", 320).nullable()
+    val passwordHash = varchar("password_hash", 255).nullable()
+    val createdAt = timestampWithTimeZone("created_at")
+    override val primaryKey = PrimaryKey(id)
+}
+
+internal object UserIdentitiesTable : Table("user_identities") {
+    val id = javaUUID("id")
+    val userId = javaUUID("user_id")
+    val provider = varchar("provider", 50)
+    val externalSubject = varchar("external_subject", 255)
     val createdAt = timestampWithTimeZone("created_at")
     override val primaryKey = PrimaryKey(id)
 }

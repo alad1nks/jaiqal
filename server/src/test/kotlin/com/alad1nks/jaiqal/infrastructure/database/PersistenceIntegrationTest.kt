@@ -1,5 +1,6 @@
 package com.alad1nks.jaiqal.infrastructure.database
 
+import com.alad1nks.jaiqal.auth.VerifiedFirebaseToken
 import com.alad1nks.jaiqal.config.DatabaseConfig
 import com.alad1nks.jaiqal.devices.DeviceRecord
 import com.alad1nks.jaiqal.plants.PlantRecord
@@ -7,6 +8,8 @@ import com.alad1nks.jaiqal.telemetry.NewMeasurement
 import com.alad1nks.jaiqal.telemetry.HistoryRequest
 import com.alad1nks.jaiqal.api.contract.HistoryInterval
 import com.alad1nks.jaiqal.users.UserRecord
+import com.alad1nks.jaiqal.users.FirebaseUserIdentityService
+import com.alad1nks.jaiqal.users.UnknownFirebaseIdentityException
 import org.flywaydb.core.Flyway
 import org.junit.AfterClass
 import org.junit.BeforeClass
@@ -16,6 +19,8 @@ import java.sql.SQLException
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
@@ -23,7 +28,7 @@ import kotlin.test.assertNull
 
 class PersistenceIntegrationTest {
     @Test
-    fun `migration is repeatable and creates every step 2 table`() {
+    fun `migration is repeatable and creates every application table`() {
         infrastructure.migrate()
         val secondRun = Flyway.configure().dataSource(infrastructure.dataSource).load().migrate()
 
@@ -32,11 +37,88 @@ class PersistenceIntegrationTest {
             val expected = setOf(
                 "users", "plants", "devices", "measurements", "device_latest_state",
                 "refresh_tokens", "alert_rules", "alert_events", "notification_outbox", "device_claim_codes",
+                "user_identities",
             )
             connection.metaData.getTables(null, "public", "%", arrayOf("TABLE")).use { rows ->
                 val actual = buildSet { while (rows.next()) add(rows.getString("TABLE_NAME")) }
                 assertEquals(emptySet(), expected - actual)
             }
+        }
+    }
+
+    @Test
+    fun `firebase identity migration advances an existing empty schema`() {
+        val schema = "migration_${UUID.randomUUID().toString().replace("-", "")}"
+        infrastructure.dataSource.connection.use { connection ->
+            connection.createStatement().use { it.execute("CREATE SCHEMA $schema") }
+            connection.commit()
+        }
+        try {
+            Flyway.configure()
+                .dataSource(infrastructure.dataSource)
+                .schemas(schema)
+                .defaultSchema(schema)
+                .target("3")
+                .load()
+                .migrate()
+            Flyway.configure()
+                .dataSource(infrastructure.dataSource)
+                .schemas(schema)
+                .defaultSchema(schema)
+                .load()
+                .migrate()
+
+            infrastructure.dataSource.connection.use { connection ->
+                connection.metaData.getTables(null, schema, "user_identities", arrayOf("TABLE")).use { rows ->
+                    assertEquals(true, rows.next())
+                }
+            }
+        } finally {
+            infrastructure.dataSource.connection.use { connection ->
+                connection.createStatement().use { it.execute("DROP SCHEMA $schema CASCADE") }
+                connection.commit()
+            }
+        }
+    }
+
+    @Test
+    fun `firebase auto provisioning is passwordless idempotent and supports no email`() {
+        val store = JdbcUserIdentityStore(infrastructure.dataSource)
+        val service = FirebaseUserIdentityService(store, autoProvisionUsers = true)
+        val uid = "uid-${UUID.randomUUID()}"
+
+        val first = service.resolve(VerifiedFirebaseToken(uid, null, false))
+        val repeated = service.resolve(VerifiedFirebaseToken(uid, null, false))
+
+        assertNull(first.email)
+        assertNull(first.passwordHash)
+        assertEquals(first, repeated)
+    }
+
+    @Test
+    fun `disabled provisioning refuses an unknown Firebase UID`() {
+        val service = FirebaseUserIdentityService(JdbcUserIdentityStore(infrastructure.dataSource), false)
+
+        assertFailsWith<UnknownFirebaseIdentityException> {
+            service.resolve(VerifiedFirebaseToken("unknown-${UUID.randomUUID()}", null, false))
+        }
+    }
+
+    @Test
+    fun `concurrent first Firebase login creates one internal account`() {
+        val uid = "concurrent-${UUID.randomUUID()}"
+        val service = FirebaseUserIdentityService(JdbcUserIdentityStore(infrastructure.dataSource), true)
+        val executor = Executors.newFixedThreadPool(2)
+        try {
+            val tasks = List(2) {
+                Callable { service.resolve(VerifiedFirebaseToken(uid, null, false)) }
+            }
+            val users = executor.invokeAll(tasks).map { it.get() }
+
+            assertEquals(1, users.map(UserRecord::id).toSet().size)
+            assertEquals(1, identityCount(uid))
+        } finally {
+            executor.shutdownNow()
         }
     }
 
@@ -111,6 +193,13 @@ class PersistenceIntegrationTest {
         val device = DeviceRecord(UUID.randomUUID(), plant.id, "Sensor", "sha256-hash", createdAt = now)
         ExposedDeviceRepository(infrastructure.database).create(device)
         return FixtureIds(user.id, plant.id, device.id)
+    }
+
+    private fun identityCount(uid: String): Int = infrastructure.dataSource.connection.use { connection ->
+        connection.prepareStatement("SELECT count(*) FROM user_identities WHERE provider='firebase' AND external_subject=?").use {
+            it.setString(1, uid)
+            it.executeQuery().use { row -> row.next(); row.getInt(1) }
+        }
     }
 
     private data class FixtureIds(val userId: UUID, val plantId: UUID, val deviceId: UUID)

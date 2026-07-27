@@ -52,6 +52,7 @@ data class AppConfig(
                 firebase = FirebaseConfig(
                     projectId = required("FIREBASE_PROJECT_ID"),
                     checkRevokedTokens = booleanValue(environment, "FIREBASE_CHECK_REVOKED_TOKENS", false),
+                    autoProvisionUsers = booleanValue(environment, "FIREBASE_AUTO_PROVISION_USERS", true),
                 ),
                 allowedOrigins = allowedOrigins,
                 telemetry = TelemetryConfig(
@@ -95,6 +96,7 @@ data class AppConfig(
 data class FirebaseConfig(
     val projectId: String,
     val checkRevokedTokens: Boolean = false,
+    val autoProvisionUsers: Boolean = true,
 ) {
     init {
         require(projectId.isNotBlank()) { "FIREBASE_PROJECT_ID must not be blank" }
