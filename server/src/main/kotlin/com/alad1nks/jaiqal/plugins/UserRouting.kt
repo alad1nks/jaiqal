@@ -1,13 +1,13 @@
 package com.alad1nks.jaiqal.plugins
 
 import com.alad1nks.jaiqal.api.contract.*
+import com.alad1nks.jaiqal.auth.UserPrincipal
 import com.alad1nks.jaiqal.users.UserApplicationService
 import com.alad1nks.jaiqal.telemetry.MeasurementEventBus
 import com.alad1nks.jaiqal.telemetry.PlantTelemetryService
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.ContentType
 import io.ktor.server.auth.authenticate
-import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.principal
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
@@ -17,7 +17,6 @@ import io.ktor.server.routing.*
 import java.util.UUID
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import com.alad1nks.jaiqal.api.contract.PlantTelemetryUpdate
 import com.alad1nks.jaiqal.alerts.AlertService
@@ -29,7 +28,7 @@ fun Route.userApi(service: UserApplicationService, plantTelemetry: PlantTelemetr
             post("/login") { call.respond(service.login(call.receive<LoginRequest>())) }
             post("/refresh") { call.respond(service.refresh(call.receive<RefreshRequest>())) }
         }
-        authenticate(USER_JWT_AUTH) {
+        authenticate(FIREBASE_USER_AUTH) {
             post("/auth/logout") {
                 service.logout(call.userId(), call.receive<LogoutRequest>())
                 call.respondText("", status = HttpStatusCode.NoContent)
@@ -92,7 +91,7 @@ fun Route.userApi(service: UserApplicationService, plantTelemetry: PlantTelemetr
 }
 
 internal fun io.ktor.server.application.ApplicationCall.userId(): UUID =
-    principal<JWTPrincipal>()?.subject?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+    principal<UserPrincipal>()?.userId
         ?: throw com.alad1nks.jaiqal.users.UserApiException(401, "UNAUTHORIZED", "A valid user token is required")
 
 private fun io.ktor.server.application.ApplicationCall.uuidParameter(name: String): UUID =
