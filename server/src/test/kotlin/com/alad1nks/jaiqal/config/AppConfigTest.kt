@@ -20,7 +20,6 @@ class AppConfigTest {
             config.allowedOrigins,
         )
         assertEquals("jdbc:postgresql://db:5432/jaiqal", config.database.url)
-        assertEquals("issuer", config.jwt.issuer)
         assertEquals("jaiqal-test", config.firebase.projectId)
         assertEquals(false, config.firebase.checkRevokedTokens)
         assertEquals(true, config.firebase.autoProvisionUsers)
@@ -28,7 +27,7 @@ class AppConfigTest {
 
     @Test
     fun failsWithoutRequiredSecrets() {
-        val environment = requiredEnvironment() - "JWT_SECRET"
+        val environment = requiredEnvironment() - "DATABASE_PASSWORD"
 
         assertFailsWith<IllegalStateException> {
             AppConfig.fromEnvironment(environment::get)
@@ -79,9 +78,6 @@ class AppConfigTest {
         "DATABASE_URL" to "jdbc:postgresql://db:5432/jaiqal",
         "DATABASE_USER" to "jaiqal",
         "DATABASE_PASSWORD" to "database-secret",
-        "JWT_ISSUER" to "issuer",
-        "JWT_AUDIENCE" to "audience",
-        "JWT_SECRET" to "jwt-secret",
         "FIREBASE_PROJECT_ID" to "jaiqal-test",
     )
 }

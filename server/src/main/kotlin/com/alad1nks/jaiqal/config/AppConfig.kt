@@ -3,7 +3,6 @@ package com.alad1nks.jaiqal.config
 data class AppConfig(
     val httpPort: Int,
     val database: DatabaseConfig,
-    val jwt: JwtConfig,
     val allowedOrigins: Set<String>,
     val firebase: FirebaseConfig,
     val telemetry: TelemetryConfig = TelemetryConfig(),
@@ -41,13 +40,6 @@ data class AppConfig(
                     url = required("DATABASE_URL"),
                     user = required("DATABASE_USER"),
                     password = required("DATABASE_PASSWORD"),
-                ),
-                jwt = JwtConfig(
-                    issuer = required("JWT_ISSUER"),
-                    audience = required("JWT_AUDIENCE"),
-                    secret = required("JWT_SECRET"),
-                    accessTokenSeconds = longValue(environment, "JWT_ACCESS_TOKEN_SECONDS", 900),
-                    refreshTokenSeconds = longValue(environment, "JWT_REFRESH_TOKEN_SECONDS", 2_592_000),
                 ),
                 firebase = FirebaseConfig(
                     projectId = required("FIREBASE_PROJECT_ID"),
@@ -144,13 +136,3 @@ data class DatabaseConfig(
     val user: String,
     val password: String,
 )
-
-data class JwtConfig(
-    val issuer: String,
-    val audience: String,
-    val secret: String,
-    val accessTokenSeconds: Long = 900,
-    val refreshTokenSeconds: Long = 2_592_000,
-) {
-    init { require(accessTokenSeconds > 0 && refreshTokenSeconds > 0) }
-}

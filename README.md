@@ -23,17 +23,17 @@ Copy the development template before starting locally:
 cp .env.example .env
 ```
 
-`.env.example` contains fake local values only. Never use its JWT secret or database password in a deployed environment and never commit `.env`.
+`.env.example` contains fake local values only. Never use its database password in a deployed environment and never commit `.env`.
 
 ### Environment variables
 
-The required variables are `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD`, `JWT_ISSUER`, `JWT_AUDIENCE`, `JWT_SECRET`, and `FIREBASE_PROJECT_ID`. `HTTP_PORT` defaults to `8080`; `ALLOWED_ORIGINS` is a comma-separated allowlist of complete origins and may be empty.
+The required variables are `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD`, and `FIREBASE_PROJECT_ID`. `HTTP_PORT` defaults to `8080`; `ALLOWED_ORIGINS` is a comma-separated allowlist of complete origins and may be empty.
 
 Firebase Admin uses Application Default Credentials. In Google-hosted environments, use workload identity. For local JVM execution, set `GOOGLE_APPLICATION_CREDENTIALS` to a service-account JSON stored outside this repository. Startup fails before opening the HTTP port if the project ID or ADC is unavailable. `FIREBASE_CHECK_REVOKED_TOKENS` defaults to `false`; enabling it adds the Firebase remote check for token revocation and disabled users.
 
 The project has no pre-existing users, so `FIREBASE_AUTO_PROVISION_USERS` defaults to `true`. The first valid Firebase token atomically creates a passwordless internal `users` row and its identity; tokens without an email are supported. Set the flag to `false` to refuse unknown Firebase UIDs without creating an account.
 
-The `firebase-user` authentication provider verifies Bearer ID tokens, resolves them to internal user UUIDs, and returns neutral `401` responses for authentication failures. All protected user routes use this provider. The `device-token` provider and ESP32 authentication remain separate and unchanged. Optional controls, with defaults, are documented in `.env.example`: JWT lifetimes; Firebase revocation checking and user auto-provisioning; telemetry time/temperature/ADC limits and upload interval; history range, point, online, and SSE heartbeat limits; and alert/outbox polling, batching, and retry limits.
+The `firebase-user` authentication provider verifies Bearer ID tokens, resolves them to internal user UUIDs, and returns neutral `401` responses for authentication failures. All protected user routes use this provider. The `device-token` provider and ESP32 authentication remain separate and unchanged. Optional controls, with defaults, are documented in `.env.example`: Firebase revocation checking and user auto-provisioning; telemetry time/temperature/ADC limits and upload interval; history range, point, online, and SSE heartbeat limits; and alert/outbox polling, batching, and retry limits.
 
 ## Local startup
 
@@ -74,7 +74,7 @@ curl http://localhost:8080/api/v1/plants \
   -H 'Authorization: Bearer paste-firebase-id-token'
 ```
 
-The future client obtains the ID Token from Firebase Authentication. The backend verifies it, maps the Firebase UID to an internal UUID, and uses that UUID for ownership checks. Legacy register/login/refresh endpoints remain temporarily present until the token-issuance removal step, but their access tokens are no longer accepted by protected routes.
+The future client obtains the ID Token from Firebase Authentication. The backend verifies it, maps the Firebase UID to an internal UUID, and uses that UUID for ownership checks. `/api/v1/auth/register`, `/login`, `/refresh`, and `/logout` return `410 Gone` with `LEGACY_AUTH_DISABLED`; they never issue or process application-owned tokens.
 
 ### Device telemetry
 
@@ -101,7 +101,7 @@ The device is identified only by the token. Sequences are idempotent per device;
 ## Main endpoints
 
 - Health: `GET /health/live`, `GET /health/ready`
-- Legacy authentication, temporary until removal: `POST /api/v1/auth/{register,login,refresh,logout}`
+- Disabled legacy authentication: `POST /api/v1/auth/{register,login,refresh,logout}` returns `410 Gone`
 - Plants: CRUD under `/api/v1/plants`
 - Devices: claim, list, update, calibrate, and rotate token under `/api/v1/devices`
 - Telemetry ingestion: `POST /api/device/v1/measurements` and `/batch`

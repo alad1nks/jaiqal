@@ -55,7 +55,7 @@ fun main() {
             ExposedDeviceTokenAuthenticator(database.database),
             ExposedDeviceRepository(database.database),
             TelemetryIngestionService(ExposedTelemetryStore(database.database), config.telemetry, eventBus),
-            UserApplicationService(JdbcUserApplicationStore(database.dataSource), config.jwt),
+            UserApplicationService(JdbcUserApplicationStore(database.dataSource)),
             PlantTelemetryService(JdbcPlantTelemetryRepository(database.dataSource), config.history),
             eventBus,
             alertService,
@@ -85,7 +85,7 @@ fun Application.configureApplication(
 ) {
     configureMonitoring()
     configureHttp(config)
-    configureAuthentication(config.jwt, deviceTokenAuthenticator, firebaseTokenVerifier, firebaseUsers)
+    configureAuthentication(deviceTokenAuthenticator, firebaseTokenVerifier, firebaseUsers)
     configureRouting(databaseReadiness, deviceRepository, telemetry, userApplication, plantTelemetry, eventBus, config.history.heartbeatSeconds, alertService)
     if (alertService != null) {
         eventBus?.let { bus -> launch(Dispatchers.IO) { bus.updates.collect { event -> event.plantId?.let(alertService::evaluatePlant) } } }

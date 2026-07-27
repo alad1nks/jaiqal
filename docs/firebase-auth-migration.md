@@ -176,8 +176,8 @@ Firebase UID и не более одной Firebase identity на internal UUID.
 
 Для Firebase-only пользователей `users.password_hash` и `users.email` стали
 nullable. Это позволяет создавать пользователя из валидного токена без пароля и
-не выдумывать email, если Firebase provider его не вернул. Legacy password login
-по-прежнему работает только для записи с непустым password hash.
+не выдумывать email, если Firebase provider его не вернул. Колонка password hash
+сохранена в схеме до отдельной cleanup-миграции, но активного password login больше нет.
 
 `FIREBASE_AUTO_PROVISION_USERS=true` — значение по умолчанию, поскольку переносить
 существующих пользователей не требуется. Создание `users` и `user_identities`
@@ -219,3 +219,20 @@ Firebase UID не передаётся в repositories или ownership checks. 
 В текущем API нет отдельных profile/settings routes или пользовательского endpoint
 для notification outbox, поэтому переключать там нечего. Device ingestion routes
 по-прежнему используют отдельный `device-token` и схему `Authorization: Device`.
+
+## Статус реализации: шаг 6
+
+`POST /api/v1/auth/register`, `/login`, `/refresh` и `/logout` больше не выполняют
+legacy-логику и всегда отвечают `410 Gone` с единым `ApiErrorResponse` и кодом
+`LEGACY_AUTH_DISABLED`. Они не читают request body, не создают пользователей или
+refresh sessions и не выдают собственные JWT.
+
+Из активного приложения удалены HMAC JWT provider, генератор JWT, Argon2 password
+flow, rotation/revoke refresh sessions, `JwtConfig`, JWT environment variables и
+неиспользуемые зависимости и legacy auth DTO. `UserApplicationService` теперь
+содержит только бизнес-операции с растениями и устройствами.
+
+Колонка `password_hash`, таблица `refresh_tokens` и старые Flyway-миграции
+намеренно сохранены в базе. Неиспользуемые runtime repository/model для refresh
+tokens удалены; физическое изменение схемы допускается только отдельной последующей
+миграцией. Firebase user provider и Device Token не изменены.

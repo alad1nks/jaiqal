@@ -3,9 +3,7 @@ package com.alad1nks.jaiqal.infrastructure.database
 import com.alad1nks.jaiqal.api.contract.UpdatePlantRequest
 import com.alad1nks.jaiqal.devices.DeviceRecord
 import com.alad1nks.jaiqal.plants.PlantRecord
-import com.alad1nks.jaiqal.users.SessionRecord
 import com.alad1nks.jaiqal.users.UserApplicationStore
-import com.alad1nks.jaiqal.users.UserRecord
 import java.sql.Connection
 import java.sql.ResultSet
 import java.time.OffsetDateTime
@@ -13,28 +11,6 @@ import java.util.UUID
 import javax.sql.DataSource
 
 class JdbcUserApplicationStore(private val dataSource: DataSource) : UserApplicationStore {
-    override fun createUser(user: UserRecord) = tx { c ->
-        c.prepareStatement("INSERT INTO users(id,email,password_hash,created_at) VALUES (?,?,?,?) ON CONFLICT(email) DO NOTHING").use {
-            it.setObject(1,user.id); it.setString(2,user.email); it.setString(3,user.passwordHash); it.setObject(4,user.createdAt); it.executeUpdate() == 1
-        }
-    }
-    override fun findUserByEmail(email: String) = queryOne("SELECT * FROM users WHERE email=?", email, mapper = ResultSet::user)
-    override fun createSession(session: SessionRecord) = tx { c -> c.insertSession(session, session.user); Unit }
-    override fun rotateSession(oldHash: String, replacement: SessionRecord) = tx { c ->
-        val user = c.prepareStatement("""SELECT u.* FROM refresh_tokens r JOIN users u ON u.id=r.user_id WHERE r.token_hash=? AND r.revoked_at IS NULL AND r.expires_at>now() FOR UPDATE OF r""").use {
-            it.setString(1,oldHash); it.executeQuery().use { rs -> if(rs.next()) rs.user() else null }
-        } ?: return@tx null
-        c.insertSession(replacement, user)
-        c.prepareStatement("UPDATE refresh_tokens SET revoked_at=now(), replaced_by_id=? WHERE token_hash=? AND revoked_at IS NULL").use {
-            it.setObject(1,replacement.id); it.setString(2,oldHash); check(it.executeUpdate()==1)
-        }
-        user
-    }
-    override fun revokeSession(hash: String, userId: UUID?) = tx { c ->
-        c.prepareStatement("UPDATE refresh_tokens SET revoked_at=now() WHERE token_hash=? AND user_id=? AND revoked_at IS NULL AND expires_at>now()").use {
-            it.setString(1,hash); it.setObject(2,userId); it.executeUpdate()==1
-        }
-    }
     override fun listPlants(userId: UUID) = query("SELECT * FROM plants WHERE user_id=? AND archived_at IS NULL ORDER BY created_at", userId, mapper = ResultSet::plant)
     override fun findPlant(userId: UUID, plantId: UUID) = queryOne("SELECT * FROM plants WHERE id=? AND user_id=? AND archived_at IS NULL", plantId, userId, mapper=ResultSet::plant)
     override fun createPlant(plant: PlantRecord) = tx { c ->
@@ -93,7 +69,5 @@ class JdbcUserApplicationStore(private val dataSource: DataSource) : UserApplica
     }
 }
 
-private fun Connection.insertSession(s:SessionRecord,user:UserRecord){prepareStatement("INSERT INTO refresh_tokens(id,user_id,token_hash,expires_at,created_at) VALUES(?,?,?,?,now())").use{it.setObject(1,s.id);it.setObject(2,user.id);it.setString(3,s.tokenHash);it.setObject(4,s.expiresAt);it.executeUpdate()}}
-private fun ResultSet.user()=UserRecord(getObject("id",UUID::class.java),getString("email"),getString("password_hash"),getObject("created_at",OffsetDateTime::class.java))
 private fun ResultSet.plant()=PlantRecord(getObject("id",UUID::class.java),getObject("user_id",UUID::class.java),getString("name"),getString("species"),getString("image_url"),getObject("created_at",OffsetDateTime::class.java),getObject("archived_at",OffsetDateTime::class.java))
 private fun ResultSet.device()=DeviceRecord(getObject("id",UUID::class.java),getObject("plant_id",UUID::class.java),getString("name"),getString("token_hash"),getString("firmware_version"),getObject("last_seen_at",OffsetDateTime::class.java),getObject("soil_dry_raw") as Int?,getObject("soil_wet_raw") as Int?,getObject("disabled_at",OffsetDateTime::class.java),getObject("created_at",OffsetDateTime::class.java))
