@@ -27,7 +27,6 @@ import io.ktor.server.routing.routing
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import org.junit.Test
-import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -44,14 +43,21 @@ class FirebaseAuthenticationTest {
         val response = client.get("/testing/firebase") {
             header(HttpHeaders.Authorization, "Bearer valid-token")
         }
+        val repeated = client.get("/testing/firebase") {
+            header(HttpHeaders.Authorization, "Bearer valid-token")
+        }
 
         assertEquals(HttpStatusCode.OK, response.status)
-        val fields = response.bodyAsText().split('|')
+        assertEquals(HttpStatusCode.OK, repeated.status)
+        val responseBody = response.bodyAsText()
+        assertEquals(responseBody, repeated.bodyAsText())
+        val fields = responseBody.split('|')
         assertEquals(store.users.single().id.toString(), fields[0])
         assertEquals("firebase-uid", fields[1])
         assertEquals("user@example.test", fields[2])
         assertEquals("true", fields[3])
-        assertEquals(listOf("valid-token"), verifier.verifiedTokens)
+        assertEquals(1, store.users.size)
+        assertEquals(listOf("valid-token", "valid-token"), verifier.verifiedTokens)
     }
 
     @Test

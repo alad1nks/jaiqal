@@ -247,3 +247,16 @@ hash и server credentials в wire-контракт не входят.
 Существующие `GET /health/live` и `GET /health/ready` сохранены без изменений:
 они возвращают только состояние процесса или доступности базы данных и не
 раскрывают Firebase project ID, credentials или настройки проверки токенов.
+
+## Статус реализации: шаг 8
+
+Firebase authentication проверяется через `FakeFirebaseTokenVerifier`; тесты не
+обращаются к Firebase Admin или внешней сети. Покрыты отсутствующий, пустой,
+некорректный и истёкший токены, формирование principal, сопоставление Firebase UID
+с internal UUID, email claims, оба режима auto-provisioning и отсутствие дублей.
+
+PostgreSQL Testcontainer проверяет конкурентный первый вход и применение Flyway на
+чистой и уже мигрированной схеме. Регрессионные route-тесты подтверждают изоляцию
+растений и устройств, чтение latest/history после Firebase-аутентификации,
+неизменный Device Token ingestion и отказ неверному device token. Legacy auth
+endpoints проверяются на `410 Gone` и отсутствие собственных access/refresh tokens.
