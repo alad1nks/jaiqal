@@ -1,6 +1,7 @@
 import UIKit
 import SwiftUI
 import Shared
+import FirebaseCore
 
 struct ComposeView: UIViewControllerRepresentable {
     func makeUIViewController(context: Self.Context) -> UIViewController {
@@ -10,7 +11,8 @@ struct ComposeView: UIViewControllerRepresentable {
             ?? "local"
         return MainViewControllerKt.MainViewController(
             backendBaseUrl: backendBaseUrl,
-            environmentName: environmentName
+            environmentName: environmentName,
+            firebaseAuthBridge: FirebaseApp.app() == nil ? nil : AppleFirebaseAuthBridge()
         )
     }
 

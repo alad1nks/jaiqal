@@ -9,7 +9,6 @@ class JsPlatform: Platform {
     override val name: String = userAgent.findAnyOf(browserList, ignoreCase = true)
             ?.let { (startIndex) -> userAgent.substring(startIndex).substringBefore(" ") }
             ?: "Unknown"
-    override val localBackendBaseUrl: String = "http://localhost:8080"
 }
 
 actual fun getPlatform(): Platform = JsPlatform()

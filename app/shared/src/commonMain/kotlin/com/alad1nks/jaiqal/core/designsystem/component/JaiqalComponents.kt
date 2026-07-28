@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.alad1nks.jaiqal.core.designsystem.theme.JaiqalTheme
 
@@ -43,6 +44,8 @@ fun JaiqalTextField(
     label: String,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    isError: Boolean = false,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
 ) {
     OutlinedTextField(
         value = value,
@@ -50,6 +53,8 @@ fun JaiqalTextField(
         label = { Text(label) },
         modifier = modifier.fillMaxWidth(),
         enabled = enabled,
+        isError = isError,
+        visualTransformation = visualTransformation,
         singleLine = true,
     )
 }

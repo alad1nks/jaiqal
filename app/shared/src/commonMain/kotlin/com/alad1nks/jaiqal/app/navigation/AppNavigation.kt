@@ -16,27 +16,33 @@ import androidx.navigation.navDeepLink
 import androidx.navigation.navigation
 import androidx.navigation.toRoute
 import com.alad1nks.jaiqal.app.JaiqalAppState
+import com.alad1nks.jaiqal.app.SessionState
+import com.alad1nks.jaiqal.core.designsystem.component.ErrorState
 import com.alad1nks.jaiqal.core.designsystem.component.LoadingState
 import com.alad1nks.jaiqal.core.designsystem.theme.ThemeMode
-import com.alad1nks.jaiqal.core.network.BackendConfig
 import com.alad1nks.jaiqal.feature.alerts.presentation.AlertsPlaceholderScreen
-import com.alad1nks.jaiqal.feature.auth.presentation.ForgotPasswordPlaceholderScreen
-import com.alad1nks.jaiqal.feature.auth.presentation.LoginPlaceholderScreen
-import com.alad1nks.jaiqal.feature.auth.presentation.RegisterPlaceholderScreen
+import com.alad1nks.jaiqal.feature.auth.presentation.ForgotPasswordScreen
+import com.alad1nks.jaiqal.feature.auth.presentation.LoginScreen
+import com.alad1nks.jaiqal.feature.auth.presentation.RegisterScreen
+import com.alad1nks.jaiqal.feature.auth.presentation.VerifyEmailScreen
 import com.alad1nks.jaiqal.feature.plants.presentation.PlantsPlaceholderScreen
 import com.alad1nks.jaiqal.feature.settings.presentation.SettingsPlaceholderScreen
 import jaiqal.app.shared.generated.resources.Res
 import jaiqal.app.shared.generated.resources.loading
+import jaiqal.app.shared.generated.resources.backend_auth_error_message
+import jaiqal.app.shared.generated.resources.backend_auth_error_title
 import jaiqal.app.shared.generated.resources.plant_details_placeholder
+import jaiqal.app.shared.generated.resources.retry
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun JaiqalNavHost(
     appState: JaiqalAppState,
     contentPadding: PaddingValues,
-    backendConfig: BackendConfig,
     themeMode: ThemeMode,
     onThemeSelected: (ThemeMode) -> Unit,
+    sessionState: SessionState,
+    onRetrySession: () -> Unit,
 ) {
     NavHost(
         navController = appState.navController,
@@ -44,10 +50,20 @@ fun JaiqalNavHost(
         modifier = Modifier.padding(contentPadding),
     ) {
         composable<SplashRoute> {
-            LoadingState(stringResource(Res.string.loading), Modifier.fillMaxSize())
+            if (sessionState == SessionState.ERROR) {
+                ErrorState(
+                    title = stringResource(Res.string.backend_auth_error_title),
+                    message = stringResource(Res.string.backend_auth_error_message),
+                    retryLabel = stringResource(Res.string.retry),
+                    onRetry = onRetrySession,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                LoadingState(stringResource(Res.string.loading), Modifier.fillMaxSize())
+            }
         }
         authGraph(appState)
-        mainGraph(appState, backendConfig, themeMode, onThemeSelected)
+        mainGraph(appState, themeMode, onThemeSelected)
         composable<PlantDetailsRoute>(
             deepLinks = listOf(navDeepLink<PlantDetailsRoute>(basePath = "jaiqal://plants")),
         ) { entry ->
@@ -65,19 +81,19 @@ fun JaiqalNavHost(
 private fun NavGraphBuilder.authGraph(appState: JaiqalAppState) {
     navigation<AuthGraph>(startDestination = LoginRoute) {
         composable<LoginRoute> {
-            LoginPlaceholderScreen(
+            LoginScreen(
                 onRegister = { appState.navController.navigate(RegisterRoute) },
                 onForgotPassword = { appState.navController.navigate(ForgotPasswordRoute) },
             )
         }
-        composable<RegisterRoute> { RegisterPlaceholderScreen(appState.navController::popBackStack) }
-        composable<ForgotPasswordRoute> { ForgotPasswordPlaceholderScreen(appState.navController::popBackStack) }
+        composable<RegisterRoute> { RegisterScreen(appState.navController::popBackStack) }
+        composable<ForgotPasswordRoute> { ForgotPasswordScreen(appState.navController::popBackStack) }
+        composable<VerifyEmailRoute> { VerifyEmailScreen() }
     }
 }
 
 private fun NavGraphBuilder.mainGraph(
     appState: JaiqalAppState,
-    backendConfig: BackendConfig,
     themeMode: ThemeMode,
     onThemeSelected: (ThemeMode) -> Unit,
 ) {
@@ -107,7 +123,7 @@ private fun NavGraphBuilder.mainGraph(
         composable<SettingsRoute> {
             MainScaffold(MainSection.SETTINGS, ::navigate) { padding ->
                 Box(Modifier.withMainContentPadding(padding)) {
-                    SettingsPlaceholderScreen(backendConfig, themeMode, onThemeSelected)
+                    SettingsPlaceholderScreen(themeMode, onThemeSelected)
                 }
             }
         }
