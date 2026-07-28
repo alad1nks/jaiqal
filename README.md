@@ -151,6 +151,8 @@ The suite combines pure unit tests, Ktor route tests, and PostgreSQL Testcontain
 
 ## Client applications
 
+The shared client architecture, local/production backend configuration, and physical-device overrides are documented in [`docs/frontend.md`](docs/frontend.md).
+
 - Android: `./gradlew :app:androidApp:assembleDebug`
 - Desktop: `./gradlew :app:desktopApp:run`
 - Web: `./gradlew :app:webApp:wasmJsBrowserDevelopmentRun`

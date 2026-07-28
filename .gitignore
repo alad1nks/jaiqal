@@ -24,3 +24,4 @@ firebase-service-account*.json
 application_default_credentials.json
 *.pem
 *.key
+app/iosApp/Configuration/Local.xcconfig

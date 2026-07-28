@@ -13,7 +13,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            App()
+            App(
+                backendBaseUrl = BuildConfig.API_BASE_URL,
+                environmentName = BuildConfig.APP_ENVIRONMENT,
+            )
         }
     }
 }
