@@ -1,5 +1,10 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
+val productionApiBaseUrl = providers.gradleProperty("JAIQAL_PRODUCTION_API_BASE_URL")
+    .orElse("https://api.example.invalid")
+val localApiBaseUrl = providers.gradleProperty("JAIQAL_LOCAL_API_BASE_URL")
+    .orElse("http://10.0.2.2:8080")
+
 plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeCompiler)
@@ -36,8 +41,14 @@ android {
         }
     }
     buildTypes {
+        debug {
+            buildConfigField("String", "API_BASE_URL", "\"${localApiBaseUrl.get()}\"")
+            buildConfigField("String", "APP_ENVIRONMENT", "\"local\"")
+        }
         release {
             isMinifyEnabled = false
+            buildConfigField("String", "API_BASE_URL", "\"${productionApiBaseUrl.get()}\"")
+            buildConfigField("String", "APP_ENVIRONMENT", "\"production\"")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -50,5 +61,6 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }

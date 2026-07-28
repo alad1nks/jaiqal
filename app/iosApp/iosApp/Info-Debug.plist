@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>JAIQAL_API_BASE_URL</key>
+	<string>$(API_BASE_URL)</string>
+	<key>JAIQAL_APP_ENVIRONMENT</key>
+	<string>$(APP_ENVIRONMENT)</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.alad1nks.jaiqal</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>jaiqal</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

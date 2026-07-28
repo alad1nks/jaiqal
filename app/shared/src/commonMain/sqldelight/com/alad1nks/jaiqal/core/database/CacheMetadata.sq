@@ -1,0 +1,17 @@
+CREATE TABLE cache_metadata (
+    account_id TEXT NOT NULL,
+    cache_key TEXT NOT NULL,
+    synced_at TEXT NOT NULL,
+    PRIMARY KEY (account_id, cache_key)
+);
+
+selectCacheMetadata:
+SELECT * FROM cache_metadata
+WHERE account_id = ? AND cache_key = ?;
+
+upsertCacheMetadata:
+INSERT OR REPLACE INTO cache_metadata(account_id, cache_key, synced_at)
+VALUES (?, ?, ?);
+
+deleteCacheForAccount:
+DELETE FROM cache_metadata WHERE account_id = ?;

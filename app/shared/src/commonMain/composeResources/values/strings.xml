@@ -1,0 +1,33 @@
+<resources>
+    <string name="app_name">Жайқал</string>
+    <string name="splash_message">Забота о растениях начинается с данных</string>
+    <string name="loading">Загрузка…</string>
+    <string name="login_title">Вход</string>
+    <string name="login_message">Firebase Authentication будет подключён на следующем шаге.</string>
+    <string name="email">Электронная почта</string>
+    <string name="password">Пароль</string>
+    <string name="sign_in">Войти</string>
+    <string name="register">Создать аккаунт</string>
+    <string name="register_message">Регистрация выполняется напрямую через Firebase.</string>
+    <string name="forgot_password">Восстановить пароль</string>
+    <string name="forgot_password_message">Firebase отправит ссылку восстановления на почту.</string>
+    <string name="back_to_login">Вернуться ко входу</string>
+    <string name="plants">Растения</string>
+    <string name="alerts">Предупреждения</string>
+    <string name="settings">Настройки</string>
+    <string name="plants_empty_title">Пока нет растений</string>
+    <string name="plants_empty_message">После входа здесь появятся растения из вашего аккаунта.</string>
+    <string name="add_plant">Добавить растение</string>
+    <string name="alerts_empty_title">Нет предупреждений</string>
+    <string name="alerts_empty_message">Активные и завершённые предупреждения появятся здесь.</string>
+    <string name="settings_message">Настройки аккаунта, языка и темы.</string>
+    <string name="theme_system">Системная тема</string>
+    <string name="theme_light">Светлая тема</string>
+    <string name="theme_dark">Тёмная тема</string>
+    <string name="offline">Нет подключения — показаны сохранённые данные</string>
+    <string name="retry">Повторить</string>
+    <string name="not_available">Пока недоступно</string>
+    <string name="backend_environment">Backend: %1$s</string>
+    <string name="plant_details">Растение</string>
+    <string name="plant_details_placeholder">Детали растения %1$s будут реализованы в Шаге 5.</string>
+</resources>

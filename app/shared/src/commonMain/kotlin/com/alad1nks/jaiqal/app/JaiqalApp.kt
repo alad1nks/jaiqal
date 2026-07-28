@@ -1,0 +1,52 @@
+package com.alad1nks.jaiqal.app
+
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.alad1nks.jaiqal.app.navigation.AuthGraph
+import com.alad1nks.jaiqal.app.navigation.JaiqalNavHost
+import com.alad1nks.jaiqal.app.navigation.MainGraph
+import com.alad1nks.jaiqal.core.designsystem.theme.JaiqalTheme
+import com.alad1nks.jaiqal.core.network.BackendConfig
+import org.koin.compose.viewmodel.koinViewModel
+
+@Composable
+fun JaiqalApp(
+    backendConfig: BackendConfig,
+    appViewModel: AppViewModel = koinViewModel(),
+) {
+    val uiState by appViewModel.state.collectAsStateWithLifecycle()
+    val appState = rememberJaiqalAppState()
+
+    LaunchedEffect(Unit) {
+        appViewModel.finishStartup()
+    }
+    LaunchedEffect(uiState.session) {
+        val target = when (uiState.session) {
+            SessionState.LOADING -> null
+            SessionState.UNAUTHENTICATED -> AuthGraph
+            SessionState.AUTHENTICATED -> MainGraph
+        }
+        if (target != null) {
+            appState.navController.navigate(target) {
+                popUpTo(appState.navController.graph.id) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
+    }
+
+    JaiqalTheme(themeMode = uiState.themeMode) {
+        Scaffold(snackbarHost = { SnackbarHost(appState.snackbarHostState) }) { contentPadding ->
+            JaiqalNavHost(
+                appState = appState,
+                contentPadding = contentPadding,
+                backendConfig = backendConfig,
+                themeMode = uiState.themeMode,
+                onThemeSelected = appViewModel::setTheme,
+            )
+        }
+    }
+}

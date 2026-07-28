@@ -6,6 +6,8 @@ plugins {
     alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.kotlinSerialization)
+    alias(libs.plugins.sqldelight)
 }
 
 kotlin {
@@ -16,6 +18,7 @@ kotlin {
         iosTarget.binaries.framework {
             baseName = "Shared"
             isStatic = true
+            binaryOption("bundleId", "com.alad1nks.jaiqal.Shared")
         }
     }
     
@@ -55,6 +58,8 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
+            implementation(libs.ktor.client.okhttp)
+            implementation(libs.sqldelight.androidDriver)
         }
         commonMain.dependencies {
             api(project(":core"))
@@ -67,9 +72,30 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+            implementation(libs.navigation.compose)
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.kotlinx.datetime)
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.contentNegotiation)
+            implementation(libs.ktor.client.logging)
+            implementation(libs.ktor.serializationKotlinxJson.core)
+            implementation(libs.sqldelight.runtime)
+            implementation(libs.koin.core)
+            implementation(libs.koin.compose)
+            implementation(libs.koin.compose.viewmodel)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
+        }
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
+            implementation(libs.sqldelight.nativeDriver)
+        }
+        jvmMain.dependencies {
+            implementation(libs.ktor.client.cio)
+            implementation(libs.sqldelight.sqliteDriver)
         }
         jsMain.dependencies {
             implementation(libs.wrappers.browser)
@@ -79,4 +105,12 @@ kotlin {
 
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
+}
+
+sqldelight {
+    databases {
+        create("JaiqalDatabase") {
+            packageName.set("com.alad1nks.jaiqal.core.database")
+        }
+    }
 }

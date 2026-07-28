@@ -1,49 +1,38 @@
 package com.alad1nks.jaiqal
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.safeContentPadding
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.tooling.preview.Preview
-import org.jetbrains.compose.resources.painterResource
-
-import jaiqal.app.shared.generated.resources.Res
-import jaiqal.app.shared.generated.resources.compose_multiplatform
+import com.alad1nks.jaiqal.app.JaiqalApp
+import com.alad1nks.jaiqal.core.network.AppEnvironment
+import com.alad1nks.jaiqal.core.network.DefaultBackendConfig
+import com.alad1nks.jaiqal.di.appModule
+import org.koin.compose.KoinApplication
+import org.koin.dsl.koinConfiguration
 
 @Composable
-@Preview
-fun App() {
-    MaterialTheme {
-        var showContent by remember { mutableStateOf(false) }
-        Column(
-            modifier = Modifier
-                .background(MaterialTheme.colorScheme.primaryContainer)
-                .safeContentPadding()
-                .fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Button(onClick = { showContent = !showContent }) {
-                Text("Click me!")
-            }
-            AnimatedVisibility(showContent) {
-                val greeting = remember { Greeting().greet() }
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Image(painterResource(Res.drawable.compose_multiplatform), null)
-                    Text("Compose: $greeting")
-                }
-            }
-        }
+fun App(
+    backendBaseUrl: String = getPlatform().localBackendBaseUrl,
+    environmentName: String = "local",
+) {
+    val backendConfig = remember(environmentName, backendBaseUrl) {
+        DefaultBackendConfig(
+            environment = AppEnvironment.from(environmentName),
+            baseUrl = backendBaseUrl,
+        )
     }
+    val dependencyConfiguration = remember(backendConfig) {
+        koinConfiguration { modules(appModule(backendConfig)) }
+    }
+    KoinApplication(
+        configuration = dependencyConfiguration,
+    ) {
+        JaiqalApp(backendConfig)
+    }
+}
+
+@Preview
+@Composable
+private fun AppPreview() {
+    App()
 }
