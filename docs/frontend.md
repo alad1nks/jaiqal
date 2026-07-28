@@ -11,7 +11,23 @@ The client uses the existing `:app:shared` module as the shared Compose Multipla
 - `core/connectivity/` and `core/lifecycle/` define shared state boundaries for later features.
 - `di/` provides the Koin application module.
 
-The initial authenticated features are placeholders. Firebase session handling and real repositories belong to later steps in `frontend-task.md`.
+Plant, alert, and device features are still placeholders for later steps in `frontend-task.md`; the authentication flow is implemented in Step 2.
+
+## Firebase Authentication
+
+Step 2 uses the official platform SDKs: Firebase Authentication from the Android BOM and `FirebaseAuth` from the Firebase Apple Swift package. No third-party KMP Firebase wrapper is used.
+
+1. In Firebase Console, register the existing Android package `com.alad1nks.jaiqal` and iOS bundle ID `com.alad1nks.jaiqal.Jaiqal`.
+2. Enable the Email/Password provider.
+3. Put the downloaded Android configuration at `app/androidApp/google-services.json`.
+4. Put the downloaded Apple configuration at `app/iosApp/iosApp/GoogleService-Info.plist`.
+5. Use the same Firebase project ID as the backend `FIREBASE_PROJECT_ID`.
+
+Both configuration files are ignored by Git. If one is absent, that platform still builds and opens the auth UI, but operations report that Firebase is not configured. Google Sign-In and Sign in with Apple are intentionally deferred because no corresponding provider configuration is present.
+
+Firebase restores its persisted session through the platform auth-state listener. The client requires email verification before entering the main graph. Once verified, it force-refreshes the Firebase ID Token and calls the existing `GET /api/v1/auth/me` endpoint. The backend creates or resolves the internal user; the client never generates an internal UUID. Passwords are passed only to the official Firebase SDK, and the small bootstrap HTTP client has no logging plugin, so the ID Token is not logged.
+
+Application configuration and Koin bootstrap are created by Android/iOS entry points before composition. UI code no longer receives or constructs a backend base URL.
 
 ## Backend environments
 

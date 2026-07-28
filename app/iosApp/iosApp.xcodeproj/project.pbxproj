@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A11111111111111111111101 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = A11111111111111111111103 /* FirebaseAuth */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		832B2899D46C0A015FB18C7F /* Jaiqal.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Jaiqal.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -42,6 +46,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A11111111111111111111101 /* FirebaseAuth in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -86,6 +91,7 @@
 			);
 			name = iosApp;
 			packageProductDependencies = (
+				A11111111111111111111103 /* FirebaseAuth */,
 			);
 			productName = iosApp;
 			productReference = 832B2899D46C0A015FB18C7F /* Jaiqal.app */;
@@ -116,6 +122,9 @@
 			mainGroup = 052E782A861A93F5C2A7A32C;
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
+			packageReferences = (
+				A11111111111111111111102 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
 			productRefGroup = FE8780824AEE6EE91E8C8304 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -350,6 +359,25 @@
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A11111111111111111111102 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.16.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A11111111111111111111103 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A11111111111111111111102 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCConfigurationList section */
 		F400E2C3CDFEA4008008BEE1 /* Build configuration list for PBXProject "iosApp" */ = {

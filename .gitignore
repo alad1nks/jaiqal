@@ -25,3 +25,5 @@ application_default_credentials.json
 *.pem
 *.key
 app/iosApp/Configuration/Local.xcconfig
+app/androidApp/google-services.json
+app/iosApp/iosApp/GoogleService-Info.plist
