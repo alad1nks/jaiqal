@@ -8,6 +8,7 @@ import com.alad1nks.jaiqal.core.network.AppEnvironment
 import com.alad1nks.jaiqal.core.network.DefaultBackendConfig
 import com.alad1nks.jaiqal.core.network.NetworkLogger
 import com.alad1nks.jaiqal.core.network.createApiHttpClient
+import com.alad1nks.jaiqal.core.database.IosDatabaseDriverFactory
 import com.alad1nks.jaiqal.di.createAppConfiguration
 import io.ktor.client.engine.darwin.Darwin
 
@@ -24,6 +25,11 @@ fun MainViewController(
         enableDebugLogging = enableNetworkLogging,
         networkLogger = NetworkLogger(::println),
     )
-    val configuration = createAppConfiguration(backendConfig, authProvider, httpClient)
+    val configuration = createAppConfiguration(
+        backendConfig,
+        authProvider,
+        httpClient,
+        IosDatabaseDriverFactory(),
+    )
     return ComposeUIViewController { App(configuration) }
 }

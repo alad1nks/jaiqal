@@ -1,0 +1,83 @@
+CREATE TABLE cached_user (
+    account_id TEXT NOT NULL PRIMARY KEY,
+    email TEXT,
+    email_verified INTEGER NOT NULL
+);
+
+CREATE TABLE cached_plant (
+    account_id TEXT NOT NULL,
+    id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    species TEXT,
+    image_url TEXT,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (account_id, id)
+);
+
+CREATE TABLE cached_device (
+    account_id TEXT NOT NULL,
+    id TEXT NOT NULL,
+    plant_id TEXT,
+    name TEXT NOT NULL,
+    firmware_version TEXT,
+    last_seen_at TEXT,
+    soil_dry_raw INTEGER,
+    soil_wet_raw INTEGER,
+    PRIMARY KEY (account_id, id)
+);
+
+CREATE TABLE cached_latest_state (
+    account_id TEXT NOT NULL,
+    device_id TEXT NOT NULL,
+    plant_id TEXT NOT NULL,
+    measured_at TEXT NOT NULL,
+    received_at TEXT NOT NULL,
+    soil_moisture_percent REAL,
+    soil_moisture_raw INTEGER,
+    air_temperature_celsius REAL,
+    air_humidity_percent REAL,
+    light_raw INTEGER,
+    online INTEGER NOT NULL,
+    calibrated INTEGER NOT NULL,
+    PRIMARY KEY (account_id, device_id)
+);
+
+CREATE TABLE cached_history_measurement (
+    account_id TEXT NOT NULL,
+    plant_id TEXT NOT NULL,
+    interval TEXT NOT NULL,
+    range_start TEXT NOT NULL,
+    range_end TEXT NOT NULL,
+    measured_at TEXT NOT NULL,
+    soil_moisture_percent REAL,
+    soil_moisture_raw REAL,
+    air_temperature_celsius REAL,
+    air_humidity_percent REAL,
+    light_raw REAL,
+    PRIMARY KEY (account_id, plant_id, interval, range_start, range_end, measured_at)
+);
+
+CREATE TABLE cached_alert_event (
+    account_id TEXT NOT NULL,
+    plant_id TEXT NOT NULL,
+    id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    triggered_at TEXT NOT NULL,
+    recovered_at TEXT,
+    acknowledged_at TEXT,
+    last_observed_at TEXT NOT NULL,
+    PRIMARY KEY (account_id, id)
+);
+
+CREATE TABLE cached_alert_rule (
+    account_id TEXT NOT NULL,
+    plant_id TEXT NOT NULL,
+    id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    threshold REAL,
+    required_duration_seconds INTEGER NOT NULL,
+    recovery_duration_seconds INTEGER NOT NULL,
+    enabled INTEGER NOT NULL,
+    PRIMARY KEY (account_id, id)
+);

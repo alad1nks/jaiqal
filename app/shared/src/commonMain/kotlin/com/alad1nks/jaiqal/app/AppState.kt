@@ -12,10 +12,12 @@ import com.alad1nks.jaiqal.core.auth.AuthProvider
 import com.alad1nks.jaiqal.core.auth.AuthState
 import com.alad1nks.jaiqal.core.auth.CurrentUserGateway
 import com.alad1nks.jaiqal.core.auth.UserSessionStore
+import com.alad1nks.jaiqal.api.contract.CurrentUserResponse
+import com.alad1nks.jaiqal.core.cache.OfflineCache
 import com.alad1nks.jaiqal.core.designsystem.theme.ThemeMode
 import com.alad1nks.jaiqal.core.network.SessionErrorStore
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +44,7 @@ class AppViewModel(
     private val currentUserGateway: CurrentUserGateway,
     private val userSessionStore: UserSessionStore,
     private val sessionErrorStore: SessionErrorStore,
+    private val offlineCache: OfflineCache,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(AppUiState())
     val state: StateFlow<AppUiState> = mutableState.asStateFlow()
@@ -67,13 +70,13 @@ class AppViewModel(
             AuthState.Loading -> mutableState.update { it.copy(session = SessionState.LOADING) }
             AuthState.Unauthenticated -> {
                 sessionErrorStore.clear()
-                userSessionStore.clear()
+                clearCurrentAccount()
                 mutableState.update { it.copy(session = SessionState.UNAUTHENTICATED) }
             }
             is AuthState.Authenticated -> {
                 if (!authState.emailVerified) {
                     sessionErrorStore.clear()
-                    userSessionStore.clear()
+                    clearCurrentAccount()
                     mutableState.update {
                         it.copy(session = SessionState.EMAIL_VERIFICATION_REQUIRED)
                     }
@@ -89,6 +92,7 @@ class AppViewModel(
         try {
             val user = currentUserGateway.fetchCurrentUser()
             sessionErrorStore.clear()
+            cacheUserBestEffort(user)
             userSessionStore.set(user)
             mutableState.update { it.copy(session = SessionState.AUTHENTICATED) }
         } catch (cancellation: CancellationException) {
@@ -112,6 +116,29 @@ class AppViewModel(
 
     fun setTheme(mode: ThemeMode) {
         mutableState.update { it.copy(themeMode = mode) }
+    }
+
+    private suspend fun clearCurrentAccount() {
+        val accountId = userSessionStore.session.value?.userId
+        try {
+            if (accountId != null) offlineCache.clearAccount(accountId)
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (_: Throwable) {
+            // Local cache failure must not keep an authenticated in-memory session alive.
+        } finally {
+            userSessionStore.clear()
+        }
+    }
+
+    private suspend fun cacheUserBestEffort(user: CurrentUserResponse) {
+        try {
+            offlineCache.replaceUser(user)
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (_: Throwable) {
+            // The server response remains the source of truth when local persistence fails.
+        }
     }
 }
 

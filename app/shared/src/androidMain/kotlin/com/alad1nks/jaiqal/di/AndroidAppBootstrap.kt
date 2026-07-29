@@ -8,6 +8,7 @@ import com.alad1nks.jaiqal.core.network.AppEnvironment
 import com.alad1nks.jaiqal.core.network.DefaultBackendConfig
 import com.alad1nks.jaiqal.core.network.NetworkLogger
 import com.alad1nks.jaiqal.core.network.createApiHttpClient
+import com.alad1nks.jaiqal.core.database.AndroidDatabaseDriverFactory
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import io.ktor.client.engine.okhttp.OkHttp
@@ -26,7 +27,12 @@ fun createAndroidAppConfiguration(
         enableDebugLogging = enableNetworkLogging,
         networkLogger = NetworkLogger { Log.d("JaiqalNetwork", it) },
     )
-    return createAppConfiguration(backendConfig, authProvider, httpClient)
+    return createAppConfiguration(
+        backendConfig,
+        authProvider,
+        httpClient,
+        AndroidDatabaseDriverFactory(context),
+    )
 }
 
 private fun createAndroidAuthProvider(context: Context): AuthProvider {

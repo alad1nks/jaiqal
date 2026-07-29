@@ -153,6 +153,8 @@ The suite combines pure unit tests, Ktor route tests, and PostgreSQL Testcontain
 
 The shared client architecture, local/production backend configuration, and physical-device overrides are documented in [`docs/frontend.md`](docs/frontend.md).
 
+The Android/iOS client uses an account-scoped SQLDelight offline cache. Reads follow documented cache-first or network-first policies, while mutations remain server-first and are never queued as false offline server state. Firebase and device credentials are not stored in this database.
+
 - Android: `./gradlew :app:androidApp:assembleDebug`
 - Desktop: `./gradlew :app:desktopApp:run`
 - Web: `./gradlew :app:webApp:wasmJsBrowserDevelopmentRun`

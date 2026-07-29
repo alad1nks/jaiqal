@@ -5,6 +5,90 @@ CREATE TABLE cache_metadata (
     PRIMARY KEY (account_id, cache_key)
 );
 
+CREATE TABLE cached_user (
+    account_id TEXT NOT NULL PRIMARY KEY,
+    email TEXT,
+    email_verified INTEGER NOT NULL
+);
+
+CREATE TABLE cached_plant (
+    account_id TEXT NOT NULL,
+    id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    species TEXT,
+    image_url TEXT,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (account_id, id)
+);
+
+CREATE TABLE cached_device (
+    account_id TEXT NOT NULL,
+    id TEXT NOT NULL,
+    plant_id TEXT,
+    name TEXT NOT NULL,
+    firmware_version TEXT,
+    last_seen_at TEXT,
+    soil_dry_raw INTEGER,
+    soil_wet_raw INTEGER,
+    PRIMARY KEY (account_id, id)
+);
+
+CREATE TABLE cached_latest_state (
+    account_id TEXT NOT NULL,
+    device_id TEXT NOT NULL,
+    plant_id TEXT NOT NULL,
+    measured_at TEXT NOT NULL,
+    received_at TEXT NOT NULL,
+    soil_moisture_percent REAL,
+    soil_moisture_raw INTEGER,
+    air_temperature_celsius REAL,
+    air_humidity_percent REAL,
+    light_raw INTEGER,
+    online INTEGER NOT NULL,
+    calibrated INTEGER NOT NULL,
+    PRIMARY KEY (account_id, device_id)
+);
+
+CREATE TABLE cached_history_measurement (
+    account_id TEXT NOT NULL,
+    plant_id TEXT NOT NULL,
+    interval TEXT NOT NULL,
+    range_start TEXT NOT NULL,
+    range_end TEXT NOT NULL,
+    measured_at TEXT NOT NULL,
+    soil_moisture_percent REAL,
+    soil_moisture_raw REAL,
+    air_temperature_celsius REAL,
+    air_humidity_percent REAL,
+    light_raw REAL,
+    PRIMARY KEY (account_id, plant_id, interval, range_start, range_end, measured_at)
+);
+
+CREATE TABLE cached_alert_event (
+    account_id TEXT NOT NULL,
+    plant_id TEXT NOT NULL,
+    id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    triggered_at TEXT NOT NULL,
+    recovered_at TEXT,
+    acknowledged_at TEXT,
+    last_observed_at TEXT NOT NULL,
+    PRIMARY KEY (account_id, id)
+);
+
+CREATE TABLE cached_alert_rule (
+    account_id TEXT NOT NULL,
+    plant_id TEXT NOT NULL,
+    id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    threshold REAL,
+    required_duration_seconds INTEGER NOT NULL,
+    recovery_duration_seconds INTEGER NOT NULL,
+    enabled INTEGER NOT NULL,
+    PRIMARY KEY (account_id, id)
+);
+
 selectCacheMetadata:
 SELECT * FROM cache_metadata
 WHERE account_id = ? AND cache_key = ?;
@@ -15,3 +99,98 @@ VALUES (?, ?, ?);
 
 deleteCacheForAccount:
 DELETE FROM cache_metadata WHERE account_id = ?;
+
+selectCachedUser:
+SELECT * FROM cached_user WHERE account_id = ?;
+
+upsertCachedUser:
+INSERT OR REPLACE INTO cached_user(account_id, email, email_verified)
+VALUES (?, ?, ?);
+
+selectPlants:
+SELECT * FROM cached_plant WHERE account_id = ? ORDER BY name COLLATE NOCASE, id;
+
+replacePlant:
+INSERT OR REPLACE INTO cached_plant(account_id, id, name, species, image_url, created_at)
+VALUES (?, ?, ?, ?, ?, ?);
+
+deletePlants:
+DELETE FROM cached_plant WHERE account_id = ?;
+
+selectDevices:
+SELECT * FROM cached_device WHERE account_id = ? ORDER BY name COLLATE NOCASE, id;
+
+replaceDevice:
+INSERT OR REPLACE INTO cached_device(
+    account_id, id, plant_id, name, firmware_version, last_seen_at, soil_dry_raw, soil_wet_raw
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+deleteDevices:
+DELETE FROM cached_device WHERE account_id = ?;
+
+selectLatestStates:
+SELECT * FROM cached_latest_state WHERE account_id = ? ORDER BY measured_at DESC;
+
+replaceLatestState:
+INSERT OR REPLACE INTO cached_latest_state(
+    account_id, device_id, plant_id, measured_at, received_at, soil_moisture_percent,
+    soil_moisture_raw, air_temperature_celsius, air_humidity_percent, light_raw, online, calibrated
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+selectHistory:
+SELECT * FROM cached_history_measurement
+WHERE account_id = ? AND plant_id = ? AND interval = ? AND range_start = ? AND range_end = ?
+ORDER BY measured_at;
+
+deleteHistoryRange:
+DELETE FROM cached_history_measurement
+WHERE account_id = ? AND plant_id = ? AND interval = ? AND range_start = ? AND range_end = ?;
+
+insertHistoryPoint:
+INSERT OR REPLACE INTO cached_history_measurement(
+    account_id, plant_id, interval, range_start, range_end, measured_at,
+    soil_moisture_percent, soil_moisture_raw, air_temperature_celsius, air_humidity_percent, light_raw
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+selectAlertEvents:
+SELECT * FROM cached_alert_event
+WHERE account_id = ? AND plant_id = ? ORDER BY triggered_at DESC;
+
+deleteAlertEvents:
+DELETE FROM cached_alert_event WHERE account_id = ? AND plant_id = ?;
+
+insertAlertEvent:
+INSERT OR REPLACE INTO cached_alert_event(
+    account_id, plant_id, id, type, status, triggered_at, recovered_at, acknowledged_at, last_observed_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+selectAlertRules:
+SELECT * FROM cached_alert_rule
+WHERE account_id = ? AND plant_id = ? ORDER BY type, id;
+
+deleteAlertRules:
+DELETE FROM cached_alert_rule WHERE account_id = ? AND plant_id = ?;
+
+insertAlertRule:
+INSERT OR REPLACE INTO cached_alert_rule(
+    account_id, plant_id, id, type, threshold, required_duration_seconds,
+    recovery_duration_seconds, enabled
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+deleteCachedUserForAccount:
+DELETE FROM cached_user WHERE account_id = ?;
+
+deleteDevicesForAccount:
+DELETE FROM cached_device WHERE account_id = ?;
+
+deleteLatestStatesForAccount:
+DELETE FROM cached_latest_state WHERE account_id = ?;
+
+deleteHistoryForAccount:
+DELETE FROM cached_history_measurement WHERE account_id = ?;
+
+deleteAlertEventsForAccount:
+DELETE FROM cached_alert_event WHERE account_id = ?;
+
+deleteAlertRulesForAccount:
+DELETE FROM cached_alert_rule WHERE account_id = ?;
