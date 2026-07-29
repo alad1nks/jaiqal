@@ -2,12 +2,16 @@ package com.alad1nks.jaiqal.core.auth
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.delay
 
 class FakeAuthProvider(initialState: AuthState = AuthState.Unauthenticated) : AuthProvider {
     private val mutableAuthState = MutableStateFlow(initialState)
     override val authState: StateFlow<AuthState> = mutableAuthState
 
     var idToken: String? = "fake-id-token"
+    var refreshedIdToken: String? = null
+    var forceRefreshDelayMillis: Long = 0
+    val tokenRequests = mutableListOf<Boolean>()
     var lastEmail: String? = null
     var lastPassword: String? = null
     var verificationEmailsSent: Int = 0
@@ -40,7 +44,14 @@ class FakeAuthProvider(initialState: AuthState = AuthState.Unauthenticated) : Au
         mutableAuthState.value = current.copy(emailVerified = true)
     }
 
-    override suspend fun getIdToken(forceRefresh: Boolean): String? = idToken
+    override suspend fun getIdToken(forceRefresh: Boolean): String? {
+        tokenRequests += forceRefresh
+        if (forceRefresh) {
+            if (forceRefreshDelayMillis > 0) delay(forceRefreshDelayMillis)
+            refreshedIdToken?.let { idToken = it }
+        }
+        return idToken
+    }
 
     override suspend fun signOut() {
         mutableAuthState.value = AuthState.Unauthenticated

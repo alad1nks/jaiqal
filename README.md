@@ -84,7 +84,7 @@ curl http://localhost:8080/api/v1/plants \
   -H 'Authorization: Bearer paste-firebase-id-token'
 ```
 
-The future client obtains the ID Token from Firebase Authentication. The backend verifies it, maps the Firebase UID to an internal UUID, and uses that UUID for ownership checks. `/api/v1/auth/register`, `/login`, `/refresh`, and `/logout` return `410 Gone` with `LEGACY_AUTH_DISABLED`; they never issue or process application-owned tokens.
+The shared client obtains the ID Token from Firebase Authentication for every protected request. After one `401` it force-refreshes the token and retries exactly once; concurrent refreshes are serialized. The token is never persisted or logged by the application. The backend verifies it, maps the Firebase UID to an internal UUID, and uses that UUID for ownership checks. `/api/v1/auth/register`, `/login`, `/refresh`, and `/logout` return `410 Gone` with `LEGACY_AUTH_DISABLED`; they never issue or process application-owned tokens.
 
 `GET /api/v1/auth/me` returns the authenticated internal user's UUID, email, and email-verification status. It does not expose the Firebase UID, ID Token, auth claims, or server credentials. Health endpoints continue to return only service/database readiness state.
 

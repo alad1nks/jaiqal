@@ -17,6 +17,7 @@ class MainActivity : ComponentActivity() {
             context = applicationContext,
             backendBaseUrl = BuildConfig.API_BASE_URL,
             environmentName = BuildConfig.APP_ENVIRONMENT,
+            enableNetworkLogging = BuildConfig.DEBUG,
         )
 
         setContent {
