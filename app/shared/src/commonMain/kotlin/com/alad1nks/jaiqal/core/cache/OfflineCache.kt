@@ -40,13 +40,16 @@ interface OfflineCache {
     fun observeLatestStates(accountId: String): Flow<List<PlantLatestResponse>>
     fun observeHistory(key: HistoryCacheKey): Flow<PlantHistoryResponse?>
     fun observeAlertEvents(accountId: String, plantId: String): Flow<List<AlertEventResponse>>
+    fun observeAllAlertEvents(accountId: String): Flow<List<Pair<String, AlertEventResponse>>>
     fun observeAlertRules(accountId: String, plantId: String): Flow<List<AlertRuleResponse>>
     fun observeMetadata(accountId: String, cacheKey: String): Flow<CacheMetadata?>
 
     suspend fun replaceUser(user: CurrentUserResponse)
     suspend fun replacePlants(accountId: String, plants: List<PlantResponse>)
+    suspend fun upsertPlant(accountId: String, plant: PlantResponse)
     suspend fun replaceDevices(accountId: String, devices: List<DeviceResponse>)
     suspend fun replaceLatestState(accountId: String, latest: PlantLatestResponse)
+    suspend fun removeLatestState(accountId: String, plantId: String)
     suspend fun replaceHistory(key: HistoryCacheKey, history: PlantHistoryResponse)
     suspend fun replaceAlertEvents(accountId: String, plantId: String, alerts: List<AlertEventResponse>)
     suspend fun replaceAlertRules(accountId: String, plantId: String, rules: List<AlertRuleResponse>)
@@ -121,6 +124,20 @@ class SqlDelightOfflineCache(database: JaiqalDatabase) : OfflineCache {
             )
         }.asFlow().mapToList(Dispatchers.Default)
 
+    override fun observeAllAlertEvents(accountId: String): Flow<List<Pair<String, AlertEventResponse>>> =
+        queries.selectAllAlertEvents(accountId) { _, plantId, id, type, status, triggered, recovered,
+            acknowledged, observed ->
+            plantId to AlertEventResponse(
+                id = id,
+                type = AlertType.valueOf(type),
+                status = AlertStatus.valueOf(status),
+                triggeredAt = triggered,
+                recoveredAt = recovered,
+                acknowledgedAt = acknowledged,
+                lastObservedAt = observed,
+            )
+        }.asFlow().mapToList(Dispatchers.Default)
+
     override fun observeAlertRules(accountId: String, plantId: String): Flow<List<AlertRuleResponse>> =
         queries.selectAlertRules(accountId, plantId) { _, _, id, type, threshold, required, recovery, enabled ->
             AlertRuleResponse(
@@ -149,6 +166,10 @@ class SqlDelightOfflineCache(database: JaiqalDatabase) : OfflineCache {
         }
     }
 
+    override suspend fun upsertPlant(accountId: String, plant: PlantResponse) {
+        queries.replacePlant(accountId, plant.id, plant.name, plant.species, plant.imageUrl, plant.createdAt)
+    }
+
     override suspend fun replaceDevices(accountId: String, devices: List<DeviceResponse>) {
         queries.transaction {
             queries.deleteDevices(accountId)
@@ -167,6 +188,10 @@ class SqlDelightOfflineCache(database: JaiqalDatabase) : OfflineCache {
             latest.soilMoisturePercent, latest.soilMoistureRaw?.toLong(), latest.airTemperatureCelsius,
             latest.airHumidityPercent, latest.lightRaw?.toLong(), latest.online.asLong(), latest.calibrated.asLong(),
         )
+    }
+
+    override suspend fun removeLatestState(accountId: String, plantId: String) {
+        queries.deleteLatestStateForPlant(accountId, plantId)
     }
 
     override suspend fun replaceHistory(key: HistoryCacheKey, history: PlantHistoryResponse) {
@@ -242,12 +267,15 @@ object NoOpOfflineCache : OfflineCache {
     override fun observeLatestStates(accountId: String) = flowOf(emptyList<PlantLatestResponse>())
     override fun observeHistory(key: HistoryCacheKey) = flowOf<PlantHistoryResponse?>(null)
     override fun observeAlertEvents(accountId: String, plantId: String) = flowOf(emptyList<AlertEventResponse>())
+    override fun observeAllAlertEvents(accountId: String) = flowOf(emptyList<Pair<String, AlertEventResponse>>())
     override fun observeAlertRules(accountId: String, plantId: String) = flowOf(emptyList<AlertRuleResponse>())
     override fun observeMetadata(accountId: String, cacheKey: String) = flowOf<CacheMetadata?>(null)
     override suspend fun replaceUser(user: CurrentUserResponse) = Unit
     override suspend fun replacePlants(accountId: String, plants: List<PlantResponse>) = Unit
+    override suspend fun upsertPlant(accountId: String, plant: PlantResponse) = Unit
     override suspend fun replaceDevices(accountId: String, devices: List<DeviceResponse>) = Unit
     override suspend fun replaceLatestState(accountId: String, latest: PlantLatestResponse) = Unit
+    override suspend fun removeLatestState(accountId: String, plantId: String) = Unit
     override suspend fun replaceHistory(key: HistoryCacheKey, history: PlantHistoryResponse) = Unit
     override suspend fun replaceAlertEvents(accountId: String, plantId: String, alerts: List<AlertEventResponse>) = Unit
     override suspend fun replaceAlertRules(accountId: String, plantId: String, rules: List<AlertRuleResponse>) = Unit

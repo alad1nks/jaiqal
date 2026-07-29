@@ -13,3 +13,5 @@ import kotlinx.serialization.Serializable
 @Serializable data object AlertsRoute
 @Serializable data object SettingsRoute
 @Serializable data class PlantDetailsRoute(val plantId: String)
+@Serializable data object CreatePlantRoute
+@Serializable data class EditPlantRoute(val plantId: String)
