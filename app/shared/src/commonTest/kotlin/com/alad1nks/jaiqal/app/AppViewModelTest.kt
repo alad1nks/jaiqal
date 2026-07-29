@@ -6,6 +6,7 @@ import com.alad1nks.jaiqal.core.auth.CurrentUserGateway
 import com.alad1nks.jaiqal.core.auth.FakeAuthProvider
 import com.alad1nks.jaiqal.core.auth.UserSessionStore
 import com.alad1nks.jaiqal.core.network.SessionErrorStore
+import com.alad1nks.jaiqal.core.cache.NoOpOfflineCache
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -40,7 +41,7 @@ class AppViewModelTest {
             CurrentUserResponse("internal-user-id", "plant@example.com", emailVerified = true)
         }
 
-        val viewModel = AppViewModel(auth, gateway, store, SessionErrorStore())
+        val viewModel = AppViewModel(auth, gateway, store, SessionErrorStore(), NoOpOfflineCache)
         advanceUntilIdle()
 
         assertEquals(1, backendCalls)
@@ -56,7 +57,7 @@ class AppViewModelTest {
         val viewModel = AppViewModel(auth, CurrentUserGateway {
             backendCalls += 1
             error("Backend must not be called")
-        }, store, SessionErrorStore())
+        }, store, SessionErrorStore(), NoOpOfflineCache)
 
         advanceUntilIdle()
 
@@ -71,7 +72,7 @@ class AppViewModelTest {
         val store = UserSessionStore()
         val viewModel = AppViewModel(auth, CurrentUserGateway {
             CurrentUserResponse("internal-user-id", "plant@example.com", emailVerified = true)
-        }, store, SessionErrorStore())
+        }, store, SessionErrorStore(), NoOpOfflineCache)
         advanceUntilIdle()
 
         auth.signOut()
@@ -90,6 +91,7 @@ class AppViewModelTest {
             CurrentUserGateway { kotlinx.coroutines.awaitCancellation() },
             store,
             SessionErrorStore(),
+            NoOpOfflineCache,
         )
         runCurrent()
 

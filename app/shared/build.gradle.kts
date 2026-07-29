@@ -83,6 +83,7 @@ kotlin {
             implementation(libs.ktor.client.logging)
             implementation(libs.ktor.serializationKotlinxJson.core)
             implementation(libs.sqldelight.runtime)
+            implementation(libs.sqldelight.coroutinesExtensions)
             implementation(libs.koin.core)
             implementation(libs.koin.compose)
             implementation(libs.koin.compose.viewmodel)
