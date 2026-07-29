@@ -56,6 +56,16 @@ Offline mutations are not queued and never create optimistic server entities. Co
 
 The SQLDelight migration from the original metadata-only schema is exercised against in-memory SQLite: the test creates version 1, migrates to version 2, verifies old metadata remains, and writes through a newly added table.
 
+## Plants
+
+Step 5 replaces the plants placeholder with list, create, edit, and details routes. `OfflineFirstPlantRepository` combines the shared `PlantResponse`, `DeviceResponse`, `PlantLatestResponse`, `AlertEventResponse`, and `PlantHistoryResponse` contracts; it does not duplicate backend entities or infer a local plant-health diagnosis.
+
+The list renders SQLDelight data immediately, then refreshes `/api/v1/plants`, `/api/v1/devices`, latest telemetry, and alerts with Firebase authentication. It supports pull-to-refresh, loading/empty/content states, a recoverable cached/offline state, server identifiers, device status, measurement time, soil moisture, and active warnings. Remote images are not downloaded in this step; cards consistently use an accessible local plant placeholder.
+
+Create and edit send only the actual API fields `name`, `species`, and `imageUrl`. Client validation mirrors the backend/database limits: a trimmed 1–255 character name, species up to 255 characters, and image URL up to 2048 characters. Mutations are server-first and cache the returned server-generated ID; an offline mutation shows an explicit error and creates no optimistic plant.
+
+Plant details display available telemetry with units and measurement timestamps, use the backend `online` flag for stale/offline presentation, mark metric warnings only from active backend alert types, expose calibration status, and show a compact cached 24-hour history summary. Full selectable charts and realtime SSE remain Step 6. Device claiming and calibration actions are visible but intentionally hand off to the device workflow planned for Step 7.
+
 Application configuration and Koin bootstrap are created by Android/iOS entry points before composition. UI code no longer receives or constructs a backend base URL.
 
 ## Backend environments

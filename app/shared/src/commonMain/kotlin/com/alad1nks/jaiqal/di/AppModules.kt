@@ -23,6 +23,14 @@ import com.alad1nks.jaiqal.core.network.SessionErrorStore
 import com.alad1nks.jaiqal.feature.auth.presentation.AuthViewModel
 import com.alad1nks.jaiqal.feature.auth.presentation.VerifyEmailViewModel
 import com.alad1nks.jaiqal.feature.settings.presentation.SettingsViewModel
+import com.alad1nks.jaiqal.feature.plants.data.ApiPlantRemoteDataSource
+import com.alad1nks.jaiqal.feature.plants.data.PlantRemoteDataSource
+import com.alad1nks.jaiqal.feature.plants.domain.OfflineFirstPlantRepository
+import com.alad1nks.jaiqal.feature.plants.domain.PlantRepository
+import com.alad1nks.jaiqal.feature.plants.presentation.CreatePlantViewModel
+import com.alad1nks.jaiqal.feature.plants.presentation.EditPlantViewModel
+import com.alad1nks.jaiqal.feature.plants.presentation.PlantDetailsViewModel
+import com.alad1nks.jaiqal.feature.plants.presentation.PlantsViewModel
 import org.koin.core.KoinApplication
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.koinApplication
@@ -51,10 +59,18 @@ fun appModule(
         single<AuthenticatedRequestExecutor> { FirebaseAuthenticatedRequestExecutor(get(), get()) }
         single<ApiClient> { KtorApiClient(get(), get(), get()) }
         single<CurrentUserGateway> { ApiCurrentUserGateway(get()) }
+        single<PlantRemoteDataSource> { ApiPlantRemoteDataSource(get()) }
     } else {
         single<CurrentUserGateway> { UnavailableCurrentUserGateway() }
     }
     single { UserSessionStore() }
+    if (httpClient != null) {
+        single<PlantRepository> { OfflineFirstPlantRepository(get(), get(), get(), get()) }
+        viewModel { PlantsViewModel(get()) }
+        viewModel { parameters -> PlantDetailsViewModel(parameters.get(), get()) }
+        viewModel { CreatePlantViewModel(get()) }
+        viewModel { parameters -> EditPlantViewModel(parameters.get(), get()) }
+    }
     viewModel { AppViewModel(get(), get(), get(), get(), get()) }
     viewModel { AuthViewModel(get()) }
     viewModel { VerifyEmailViewModel(get()) }

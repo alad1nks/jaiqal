@@ -156,6 +156,10 @@ selectAlertEvents:
 SELECT * FROM cached_alert_event
 WHERE account_id = ? AND plant_id = ? ORDER BY triggered_at DESC;
 
+selectAllAlertEvents:
+SELECT * FROM cached_alert_event
+WHERE account_id = ? ORDER BY triggered_at DESC;
+
 deleteAlertEvents:
 DELETE FROM cached_alert_event WHERE account_id = ? AND plant_id = ?;
 
@@ -185,6 +189,9 @@ DELETE FROM cached_device WHERE account_id = ?;
 
 deleteLatestStatesForAccount:
 DELETE FROM cached_latest_state WHERE account_id = ?;
+
+deleteLatestStateForPlant:
+DELETE FROM cached_latest_state WHERE account_id = ? AND plant_id = ?;
 
 deleteHistoryForAccount:
 DELETE FROM cached_history_measurement WHERE account_id = ?;

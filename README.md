@@ -155,6 +155,8 @@ The shared client architecture, local/production backend configuration, and phys
 
 The Android/iOS client uses an account-scoped SQLDelight offline cache. Reads follow documented cache-first or network-first policies, while mutations remain server-first and are never queued as false offline server state. Firebase and device credentials are not stored in this database.
 
+The shared client includes cache-first plant list/details screens and server-first create/edit forms backed by the existing `/api/v1/plants`, device, telemetry, and alert contracts. Details show only measurements and alert states supplied by the backend; the client does not invent plant-health diagnoses.
+
 - Android: `./gradlew :app:androidApp:assembleDebug`
 - Desktop: `./gradlew :app:desktopApp:run`
 - Web: `./gradlew :app:webApp:wasmJsBrowserDevelopmentRun`
