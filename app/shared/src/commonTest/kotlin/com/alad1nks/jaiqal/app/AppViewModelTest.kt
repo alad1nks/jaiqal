@@ -5,6 +5,7 @@ import com.alad1nks.jaiqal.core.auth.AuthState
 import com.alad1nks.jaiqal.core.auth.CurrentUserGateway
 import com.alad1nks.jaiqal.core.auth.FakeAuthProvider
 import com.alad1nks.jaiqal.core.auth.UserSessionStore
+import com.alad1nks.jaiqal.core.network.SessionErrorStore
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -14,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -32,16 +34,16 @@ class AppViewModelTest {
     fun restoredVerifiedFirebaseSessionIsSynchronizedWithBackend() = runTest(dispatcher) {
         val auth = FakeAuthProvider(AuthState.Authenticated("plant@example.com", emailVerified = true))
         val store = UserSessionStore()
-        var receivedToken: String? = null
-        val gateway = CurrentUserGateway { token ->
-            receivedToken = token
+        var backendCalls = 0
+        val gateway = CurrentUserGateway {
+            backendCalls += 1
             CurrentUserResponse("internal-user-id", "plant@example.com", emailVerified = true)
         }
 
-        val viewModel = AppViewModel(auth, gateway, store)
+        val viewModel = AppViewModel(auth, gateway, store, SessionErrorStore())
         advanceUntilIdle()
 
-        assertEquals("fake-id-token", receivedToken)
+        assertEquals(1, backendCalls)
         assertEquals(SessionState.AUTHENTICATED, viewModel.state.value.session)
         assertEquals("internal-user-id", store.session.value?.userId)
     }
@@ -54,7 +56,7 @@ class AppViewModelTest {
         val viewModel = AppViewModel(auth, CurrentUserGateway {
             backendCalls += 1
             error("Backend must not be called")
-        }, store)
+        }, store, SessionErrorStore())
 
         advanceUntilIdle()
 
@@ -69,8 +71,27 @@ class AppViewModelTest {
         val store = UserSessionStore()
         val viewModel = AppViewModel(auth, CurrentUserGateway {
             CurrentUserResponse("internal-user-id", "plant@example.com", emailVerified = true)
-        }, store)
+        }, store, SessionErrorStore())
         advanceUntilIdle()
+
+        auth.signOut()
+        advanceUntilIdle()
+
+        assertEquals(SessionState.UNAUTHENTICATED, viewModel.state.value.session)
+        assertNull(store.session.value)
+    }
+
+    @Test
+    fun cancelledBackendSynchronizationDoesNotBecomeSessionError() = runTest(dispatcher) {
+        val auth = FakeAuthProvider(AuthState.Authenticated("plant@example.com", emailVerified = true))
+        val store = UserSessionStore()
+        val viewModel = AppViewModel(
+            auth,
+            CurrentUserGateway { kotlinx.coroutines.awaitCancellation() },
+            store,
+            SessionErrorStore(),
+        )
+        runCurrent()
 
         auth.signOut()
         advanceUntilIdle()

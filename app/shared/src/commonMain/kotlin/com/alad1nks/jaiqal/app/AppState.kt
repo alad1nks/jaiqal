@@ -13,7 +13,9 @@ import com.alad1nks.jaiqal.core.auth.AuthState
 import com.alad1nks.jaiqal.core.auth.CurrentUserGateway
 import com.alad1nks.jaiqal.core.auth.UserSessionStore
 import com.alad1nks.jaiqal.core.designsystem.theme.ThemeMode
+import com.alad1nks.jaiqal.core.network.SessionErrorStore
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,6 +41,7 @@ class AppViewModel(
     private val authProvider: AuthProvider,
     private val currentUserGateway: CurrentUserGateway,
     private val userSessionStore: UserSessionStore,
+    private val sessionErrorStore: SessionErrorStore,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(AppUiState())
     val state: StateFlow<AppUiState> = mutableState.asStateFlow()
@@ -48,6 +51,14 @@ class AppViewModel(
         viewModelScope.launch {
             authProvider.authState.collectLatest(::handleAuthState)
         }
+        viewModelScope.launch {
+            sessionErrorStore.requiresSignIn.collectLatest { requiresSignIn ->
+                if (requiresSignIn) {
+                    userSessionStore.clear()
+                    mutableState.update { it.copy(session = SessionState.ERROR) }
+                }
+            }
+        }
     }
 
     private suspend fun handleAuthState(authState: AuthState) {
@@ -55,11 +66,13 @@ class AppViewModel(
         when (authState) {
             AuthState.Loading -> mutableState.update { it.copy(session = SessionState.LOADING) }
             AuthState.Unauthenticated -> {
+                sessionErrorStore.clear()
                 userSessionStore.clear()
                 mutableState.update { it.copy(session = SessionState.UNAUTHENTICATED) }
             }
             is AuthState.Authenticated -> {
                 if (!authState.emailVerified) {
+                    sessionErrorStore.clear()
                     userSessionStore.clear()
                     mutableState.update {
                         it.copy(session = SessionState.EMAIL_VERIFICATION_REQUIRED)
@@ -73,14 +86,14 @@ class AppViewModel(
 
     private suspend fun synchronizeBackendSession() {
         mutableState.update { it.copy(session = SessionState.AUTHENTICATING_BACKEND) }
-        runCatching {
-            val idToken = authProvider.getIdToken(forceRefresh = true)
-                ?: error("Firebase did not provide an ID Token")
-            currentUserGateway.fetchCurrentUser(idToken)
-        }.onSuccess { user ->
+        try {
+            val user = currentUserGateway.fetchCurrentUser()
+            sessionErrorStore.clear()
             userSessionStore.set(user)
             mutableState.update { it.copy(session = SessionState.AUTHENTICATED) }
-        }.onFailure {
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (_: Throwable) {
             userSessionStore.clear()
             mutableState.update { it.copy(session = SessionState.ERROR) }
         }
@@ -88,6 +101,7 @@ class AppViewModel(
 
     fun retrySession() {
         synchronizationJob?.cancel()
+        sessionErrorStore.clear()
         synchronizationJob = viewModelScope.launch {
             val authState = authProvider.authState.value
             if (authState is AuthState.Authenticated && authState.emailVerified) {

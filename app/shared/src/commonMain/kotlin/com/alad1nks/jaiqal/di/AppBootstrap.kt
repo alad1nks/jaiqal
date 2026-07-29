@@ -1,12 +1,11 @@
 package com.alad1nks.jaiqal.di
 
 import com.alad1nks.jaiqal.core.auth.AuthProvider
-import com.alad1nks.jaiqal.core.auth.CurrentUserGateway
 import com.alad1nks.jaiqal.core.auth.UnavailableAuthProvider
-import com.alad1nks.jaiqal.core.auth.UnavailableCurrentUserGateway
 import com.alad1nks.jaiqal.core.network.AppEnvironment
 import com.alad1nks.jaiqal.core.network.BackendConfig
 import com.alad1nks.jaiqal.core.network.DefaultBackendConfig
+import io.ktor.client.HttpClient
 import org.koin.dsl.KoinConfiguration
 import org.koin.dsl.koinConfiguration
 
@@ -17,10 +16,10 @@ class AppBootstrap internal constructor(
 fun createAppConfiguration(
     backendConfig: BackendConfig,
     authProvider: AuthProvider,
-    currentUserGateway: CurrentUserGateway,
+    httpClient: HttpClient?,
 ): AppBootstrap = AppBootstrap(
     koinConfiguration {
-        modules(appModule(backendConfig, authProvider, currentUserGateway))
+        modules(appModule(backendConfig, authProvider, httpClient))
     },
 )
 
@@ -30,5 +29,5 @@ fun createUnavailableAppConfiguration(
 ): AppBootstrap = createAppConfiguration(
     backendConfig = DefaultBackendConfig(AppEnvironment.from(environmentName), backendBaseUrl),
     authProvider = UnavailableAuthProvider(),
-    currentUserGateway = UnavailableCurrentUserGateway(),
+    httpClient = null,
 )
