@@ -176,6 +176,8 @@ The alerts tab reads active and recovered events from the account-scoped offline
 
 Settings persist non-secret language (`system`, `kk`, `ru`, or `en`) and theme (`system`, `light`, or `dark`) preferences in SQLDelight. The screen also exposes account and email-verification state, resend verification, logout, app version, and an optional privacy-policy link; non-secret diagnostics are debug-only. Russian is the default resource locale, and complete Kazakh and English resource sets cover all client screens. Configure the Android privacy URL with `-PJAIQAL_PRIVACY_POLICY_URL=https://example.com/privacy` and the iOS URL with `PRIVACY_POLICY_URL` in `app/iosApp/Configuration/Config.xcconfig`; an empty value produces a localized placeholder.
 
+Crashlytics is integrated for Android and iOS with collection disabled in debug and release mapping/dSYM upload configured. Common non-fatal reporting accepts only deduplicated, non-personal issue codes; credentials, tokens, email addresses, and user IDs are never passed to it. Firebase Messaging is intentionally not linked because the backend has no user push-token registration endpoint. The common `PushTokenRegistrar` boundary and the required backend contract are documented in [`docs/frontend.md`](docs/frontend.md); FCM/APNs permission, token, rotation, logout deactivation, and notification deep links must wait for that API.
+
 - Android: `./gradlew :app:androidApp:assembleDebug`
 - Desktop: `./gradlew :app:desktopApp:run`
 - Web: `./gradlew :app:webApp:wasmJsBrowserDevelopmentRun`
@@ -183,7 +185,7 @@ Settings persist non-secret language (`system`, `kk`, `ru`, or `en`) and theme (
 
 ## Known limitations
 
-- Notification delivery uses the logging sender; production FCM/APNs adapters and credentials are intentionally not included.
+- Notification delivery uses the logging sender, and the backend has no user push-token registration endpoint; production FCM/APNs delivery remains blocked on that server contract.
 - The in-process measurement event bus and SSE subscriptions are node-local; the server is currently designed as one modular-monolith instance.
 - Offline-device alert evaluation is polling-based, and telemetry aggregation uses standard PostgreSQL rather than TimescaleDB.
 - Device provisioning is an operator Gradle command; there is no administrator UI.

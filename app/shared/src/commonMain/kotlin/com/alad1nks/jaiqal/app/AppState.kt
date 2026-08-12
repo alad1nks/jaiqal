@@ -15,6 +15,10 @@ import com.alad1nks.jaiqal.core.auth.UserSessionStore
 import com.alad1nks.jaiqal.api.contract.CurrentUserResponse
 import com.alad1nks.jaiqal.core.cache.OfflineCache
 import com.alad1nks.jaiqal.core.designsystem.theme.ThemeMode
+import com.alad1nks.jaiqal.core.diagnostics.CrashReporter
+import com.alad1nks.jaiqal.core.diagnostics.NoOpCrashReporter
+import com.alad1nks.jaiqal.core.diagnostics.NonFatalIssue
+import com.alad1nks.jaiqal.core.network.ApiException
 import com.alad1nks.jaiqal.core.network.SessionErrorStore
 import com.alad1nks.jaiqal.core.preferences.AppLanguage
 import com.alad1nks.jaiqal.core.preferences.AppPreferences
@@ -52,6 +56,7 @@ class AppViewModel(
     private val sessionErrorStore: SessionErrorStore,
     private val offlineCache: OfflineCache,
     private val appPreferences: AppPreferences = InMemoryAppPreferences(),
+    private val crashReporter: CrashReporter = NoOpCrashReporter,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(AppUiState())
     val state: StateFlow<AppUiState> = mutableState.asStateFlow()
@@ -115,7 +120,16 @@ class AppViewModel(
             mutableState.update { it.copy(session = SessionState.AUTHENTICATED) }
         } catch (cancellation: CancellationException) {
             throw cancellation
-        } catch (_: Throwable) {
+        } catch (failure: Throwable) {
+            if (failure !is ApiException) {
+                try {
+                    crashReporter.recordNonFatal(NonFatalIssue.BACKEND_SESSION_SYNC)
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (_: Throwable) {
+                    // Diagnostics must never interrupt session recovery.
+                }
+            }
             userSessionStore.clear()
             mutableState.update { it.copy(session = SessionState.ERROR) }
         }

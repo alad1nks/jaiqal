@@ -17,6 +17,7 @@ fun MainViewController(
     backendBaseUrl: String,
     environmentName: String,
     firebaseAuthBridge: IosFirebaseAuthBridge?,
+    crashReporterBridge: IosCrashReporterBridge?,
     enableNetworkLogging: Boolean,
     appVersion: String,
     isDebug: Boolean,
@@ -35,6 +36,7 @@ fun MainViewController(
         httpClient,
         IosDatabaseDriverFactory(),
         AppInfo(appVersion, getPlatform().name, isDebug, privacyPolicyUrl),
+        createIosCrashReporter(crashReporterBridge),
     )
     return ComposeUIViewController { App(configuration) }
 }

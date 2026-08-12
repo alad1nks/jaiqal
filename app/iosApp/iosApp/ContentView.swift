@@ -21,6 +21,7 @@ struct ComposeView: UIViewControllerRepresentable {
             backendBaseUrl: backendBaseUrl,
             environmentName: environmentName,
             firebaseAuthBridge: FirebaseApp.app() == nil ? nil : AppleFirebaseAuthBridge(),
+            crashReporterBridge: FirebaseApp.app() == nil ? nil : AppleFirebaseCrashReporterBridge(),
             enableNetworkLogging: enableNetworkLogging,
             appVersion: appVersion,
             isDebug: enableNetworkLogging,

@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		A11111111111111111111101 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = A11111111111111111111103 /* FirebaseAuth */; };
+		A11111111111111111111104 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = A11111111111111111111105 /* FirebaseCrashlytics */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -47,6 +48,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A11111111111111111111101 /* FirebaseAuth in Frameworks */,
+				A11111111111111111111104 /* FirebaseCrashlytics in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -81,6 +83,7 @@
 				60D535BDACAC7753194C5B55 /* Sources */,
 				51D5A98C15B7A4A79A88D9AF /* Frameworks */,
 				7623485D5A1DEAD0FFB1E673 /* Resources */,
+				A11111111111111111111106 /* Upload Crashlytics Symbols */,
 			);
 			buildRules = (
 			);
@@ -92,6 +95,7 @@
 			name = iosApp;
 			packageProductDependencies = (
 				A11111111111111111111103 /* FirebaseAuth */,
+				A11111111111111111111105 /* FirebaseCrashlytics */,
 			);
 			productName = iosApp;
 			productReference = 832B2899D46C0A015FB18C7F /* Jaiqal.app */;
@@ -163,6 +167,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \\\"YES\\\"\"\n  exit 0\nfi\ncd \"$SRCROOT/../..\"\n./gradlew :app:shared:embedAndSignAppleFrameworkForXcode\n";
+		};
+		A11111111111111111111106 /* Upload Crashlytics Symbols */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Upload Crashlytics Symbols";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"$CONFIGURATION\" != \"Release\" ]; then\n  exit 0\nfi\nGOOGLE_SERVICE_INFO=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/GoogleService-Info.plist\"\nif [ ! -f \"$GOOGLE_SERVICE_INFO\" ]; then\n  echo \"warning: Crashlytics dSYM upload skipped because GoogleService-Info.plist is not configured\"\n  exit 0\nfi\n\"${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -376,6 +399,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A11111111111111111111102 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseAuth;
+		};
+		A11111111111111111111105 /* FirebaseCrashlytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A11111111111111111111102 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCrashlytics;
 		};
 /* End XCSwiftPackageProductDependency section */
 

@@ -21,6 +21,8 @@ import com.alad1nks.jaiqal.core.network.SessionErrorStore
 import com.alad1nks.jaiqal.core.preferences.AppPreferences
 import com.alad1nks.jaiqal.core.preferences.InMemoryAppPreferences
 import com.alad1nks.jaiqal.core.preferences.SqlDelightAppPreferences
+import com.alad1nks.jaiqal.core.push.PushTokenRegistrar
+import com.alad1nks.jaiqal.core.push.UnavailablePushTokenRegistrar
 import io.ktor.client.HttpClient
 import org.koin.dsl.module
 
@@ -36,6 +38,7 @@ fun coreDataModule(
     single { SessionErrorStore() }
     single { SyncCoordinator() }
     single { UserSessionStore() }
+    single<PushTokenRegistrar> { UnavailablePushTokenRegistrar() }
 
     if (databaseDriverFactory != null) {
         single { databaseDriverFactory.create() }
