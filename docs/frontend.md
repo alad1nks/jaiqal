@@ -16,7 +16,7 @@ The Gradle graph follows `launcher -> app:shared -> feature -> core`:
 
 This is a pragmatic feature modularization: substantial product features get a module, while `data`, `domain`, and `presentation` remain packages inside a feature rather than becoming a module each. Feature navigation and DI stay with the feature; `:app:shared` only connects them.
 
-Plant history and realtime are implemented through Step 6 of `frontend-task.md`; alert management and device workflows remain later steps.
+Plant history, realtime, device workflows, and alert management are implemented through Step 8 of `frontend-task.md`.
 
 ## Firebase Authentication
 
@@ -84,6 +84,12 @@ A connectivity failure or timeout after submitting a claim is treated as an unce
 
 `DeviceDetailsScreen` shows cached device identity, firmware, last-seen, online, and calibration values. Its five-step calibration wizard captures dry and wet readings from the actual `GET /api/v1/plants/{plantId}/latest` contract and writes them with `PATCH /api/v1/devices/{deviceId}/calibration`. The backend does not expose a multi-sample calibration endpoint, so the client shows each measurement timestamp and lets the user repeat unstable captures rather than fabricating sample aggregation. Equal values are rejected; increasing or decreasing wet ADC direction is accepted and explained. Offline devices, missing raw readings, timeout, cancellation without a write, and recalibration are explicit states.
 
+## Alerts and rules
+
+Step 8 lives in `:feature:alerts`. Its repository combines cached plants and alert events for the tab, refreshes each owned plant through the actual alerts endpoints, and keeps rule caches scoped by account and plant. Acknowledge and `PUT` rule mutations are server-first and never report an offline save as successful.
+
+The rule editor keeps unsaved drafts separate from server-backed rules, validates the backend's threshold and 0–2,592,000 second duration constraints, explains debounce duration, and can reset a rejected draft. Alert events currently contain status and timestamps but no measured value or historical threshold; the UI explicitly marks those fields unavailable rather than joining against a potentially changed current rule.
+
 Application configuration and Koin bootstrap are created by Android/iOS entry points before composition. UI code no longer receives or constructs a backend base URL.
 
 ## Backend environments
@@ -111,6 +117,7 @@ The checked-in production endpoint is intentionally non-routable. Supply a real 
 ./gradlew :app:shared:compileKotlinIosSimulatorArm64
 ./gradlew :core:data:jvmTest :feature:auth:jvmTest :feature:plants:jvmTest
 ./gradlew :feature:devices:jvmTest
+./gradlew :feature:alerts:jvmTest
 ./gradlew :app:shared:jvmTest :app:shared:iosSimulatorArm64Test
 ```
 

@@ -16,7 +16,9 @@ import com.alad1nks.jaiqal.core.designsystem.component.ErrorState
 import com.alad1nks.jaiqal.core.designsystem.component.LoadingState
 import com.alad1nks.jaiqal.core.designsystem.theme.ThemeMode
 import com.alad1nks.jaiqal.feature.alerts.navigation.AlertsRoute
-import com.alad1nks.jaiqal.feature.alerts.presentation.AlertsPlaceholderScreen
+import com.alad1nks.jaiqal.feature.alerts.navigation.alertRuleScreens
+import com.alad1nks.jaiqal.feature.alerts.navigation.navigateToAlertRules
+import com.alad1nks.jaiqal.feature.alerts.presentation.AlertsScreen
 import com.alad1nks.jaiqal.feature.auth.navigation.authGraph
 import com.alad1nks.jaiqal.feature.devices.navigation.deviceScreens
 import com.alad1nks.jaiqal.feature.devices.navigation.navigateToCalibration
@@ -72,6 +74,7 @@ fun JaiqalNavHost(
             onCalibrate = appState.navController::navigateToCalibration,
         )
         deviceScreens(appState.navController)
+        alertRuleScreens(appState.navController)
     }
 }
 
@@ -106,7 +109,9 @@ private fun NavGraphBuilder.mainGraph(
         }
         composable<AlertsRoute> {
             MainScaffold(MainSection.ALERTS, ::navigate) { padding ->
-                Box(Modifier.withMainContentPadding(padding)) { AlertsPlaceholderScreen() }
+                Box(Modifier.withMainContentPadding(padding)) {
+                    AlertsScreen(onOpenRules = appState.navController::navigateToAlertRules)
+                }
             }
         }
         composable<SettingsRoute> {
