@@ -6,6 +6,7 @@ import com.alad1nks.jaiqal.core.database.DatabaseDriverFactory
 import com.alad1nks.jaiqal.core.di.coreDataModule
 import com.alad1nks.jaiqal.core.network.BackendConfig
 import com.alad1nks.jaiqal.feature.auth.di.authModule
+import com.alad1nks.jaiqal.feature.devices.di.devicesModule
 import com.alad1nks.jaiqal.feature.plants.di.plantsModule
 import com.alad1nks.jaiqal.feature.settings.di.settingsModule
 import io.ktor.client.HttpClient
@@ -29,7 +30,10 @@ internal fun appModules(
     add(appModule)
     add(authModule)
     add(settingsModule)
-    if (httpClient != null) add(plantsModule)
+    if (httpClient != null) {
+        add(plantsModule)
+        add(devicesModule)
+    }
 }
 
 fun createKoinApplication(
