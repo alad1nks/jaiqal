@@ -11,6 +11,7 @@ API_BASE_URL=https:/$()/api.example.invalid
 API_BASE_URL[config=Debug]=http:/$()/127.0.0.1:8080
 APP_ENVIRONMENT=production
 APP_ENVIRONMENT[config=Debug]=local
+PRIVACY_POLICY_URL=
 
 // Optional, untracked override for a physical device; see Local.xcconfig.example.
 #include? "Local.xcconfig"

@@ -27,13 +27,15 @@ class DatabaseMigrationTest {
                 parameters = 0,
             ).value
 
-            JaiqalDatabase.Schema.migrate(driver, oldVersion = 1, newVersion = 2).value
+            JaiqalDatabase.Schema.migrate(driver, oldVersion = 1, newVersion = 3).value
             val queries = JaiqalDatabase(driver).cacheMetadataQueries
 
             assertEquals("2026-07-29T00:00:00Z", queries.selectCacheMetadata("account-a", "plants").executeAsOne().synced_at)
             queries.replacePlant("account-a", "plant-a", "Aloe", null, null, "2026-07-29T00:00:00Z")
             assertEquals("plant-a", queries.selectPlants("account-a").executeAsOne().id)
-            assertEquals(2L, JaiqalDatabase.Schema.version)
+            queries.upsertAppPreference("language", "KAZAKH")
+            assertEquals("KAZAKH", queries.selectAppPreferences().executeAsOne().preference_value)
+            assertEquals(3L, JaiqalDatabase.Schema.version)
         } finally {
             driver.close()
         }

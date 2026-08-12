@@ -18,6 +18,9 @@ import com.alad1nks.jaiqal.core.network.BackendConfig
 import com.alad1nks.jaiqal.core.network.FirebaseAuthenticatedRequestExecutor
 import com.alad1nks.jaiqal.core.network.KtorApiClient
 import com.alad1nks.jaiqal.core.network.SessionErrorStore
+import com.alad1nks.jaiqal.core.preferences.AppPreferences
+import com.alad1nks.jaiqal.core.preferences.InMemoryAppPreferences
+import com.alad1nks.jaiqal.core.preferences.SqlDelightAppPreferences
 import io.ktor.client.HttpClient
 import org.koin.dsl.module
 
@@ -38,8 +41,10 @@ fun coreDataModule(
         single { databaseDriverFactory.create() }
         single { JaiqalDatabase(get()) }
         single<OfflineCache> { SqlDelightOfflineCache(get()) }
+        single<AppPreferences> { SqlDelightAppPreferences(get()) }
     } else {
         single<OfflineCache> { NoOpOfflineCache }
+        single<AppPreferences> { InMemoryAppPreferences() }
     }
 
     if (httpClient != null) {

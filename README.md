@@ -174,6 +174,8 @@ Device claiming uses only the authenticated user endpoint and a manually entered
 
 The alerts tab reads active and recovered events from the account-scoped offline cache and refreshes every owned plant from the backend. Acknowledgement and rule replacement are server-first and never fabricate an offline success. Rule drafts validate the same threshold and duration ranges as the backend and remain editable after rejection; reset restores the last server-backed values. The current alert-event DTO does not expose the measured value or historical threshold, so the client states that limitation instead of presenting the current rule as historical event data.
 
+Settings persist non-secret language (`system`, `kk`, `ru`, or `en`) and theme (`system`, `light`, or `dark`) preferences in SQLDelight. The screen also exposes account and email-verification state, resend verification, logout, app version, and an optional privacy-policy link; non-secret diagnostics are debug-only. Russian is the default resource locale, and complete Kazakh and English resource sets cover all client screens. Configure the Android privacy URL with `-PJAIQAL_PRIVACY_POLICY_URL=https://example.com/privacy` and the iOS URL with `PRIVACY_POLICY_URL` in `app/iosApp/Configuration/Config.xcconfig`; an empty value produces a localized placeholder.
+
 - Android: `./gradlew :app:androidApp:assembleDebug`
 - Desktop: `./gradlew :app:desktopApp:run`
 - Web: `./gradlew :app:webApp:wasmJsBrowserDevelopmentRun`

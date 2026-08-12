@@ -35,6 +35,7 @@ import com.alad1nks.jaiqal.core.designsystem.component.OfflineBanner
 import com.alad1nks.jaiqal.core.designsystem.component.StatusBadge
 import com.alad1nks.jaiqal.core.designsystem.component.StatusKind
 import com.alad1nks.jaiqal.core.designsystem.theme.JaiqalTheme
+import com.alad1nks.jaiqal.core.designsystem.format.localizedTimestamp
 import com.alad1nks.jaiqal.feature.alerts.domain.AlertOverview
 import jaiqal.resources.generated.resources.Res
 import jaiqal.resources.generated.resources.*
@@ -127,8 +128,10 @@ private fun AlertCard(alert: AlertOverview, acknowledging: Boolean, onAcknowledg
             )
         }
         Text(stringResource(Res.string.alert_plant_value, alert.plantName))
-        Text(stringResource(Res.string.alert_triggered_value, event.triggeredAt))
-        event.recoveredAt?.let { Text(stringResource(Res.string.alert_recovered_value, it)) }
+        Text(stringResource(Res.string.alert_triggered_value, localizedTimestamp(event.triggeredAt)))
+        event.recoveredAt?.let {
+            Text(stringResource(Res.string.alert_recovered_value, localizedTimestamp(it)))
+        }
         Text(stringResource(Res.string.alert_value_unavailable), style = MaterialTheme.typography.bodySmall)
         if (event.acknowledgedAt == null) {
             JaiqalButton(
@@ -140,7 +143,7 @@ private fun AlertCard(alert: AlertOverview, acknowledging: Boolean, onAcknowledg
             if (acknowledging) CircularProgressIndicator()
         } else {
             val acknowledgedAt = event.acknowledgedAt.orEmpty()
-            Text(stringResource(Res.string.alert_acknowledged_value, acknowledgedAt))
+            Text(stringResource(Res.string.alert_acknowledged_value, localizedTimestamp(acknowledgedAt)))
         }
     }
 }

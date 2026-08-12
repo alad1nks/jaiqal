@@ -30,7 +30,8 @@ import com.alad1nks.jaiqal.feature.plants.navigation.navigateToPlantDetails
 import com.alad1nks.jaiqal.feature.plants.navigation.plantDetailScreens
 import com.alad1nks.jaiqal.feature.plants.presentation.PlantsScreen
 import com.alad1nks.jaiqal.feature.settings.navigation.SettingsRoute
-import com.alad1nks.jaiqal.feature.settings.presentation.SettingsPlaceholderScreen
+import com.alad1nks.jaiqal.feature.settings.presentation.SettingsScreen
+import com.alad1nks.jaiqal.core.preferences.AppLanguage
 import jaiqal.resources.generated.resources.Res
 import jaiqal.resources.generated.resources.loading
 import jaiqal.resources.generated.resources.backend_auth_error_message
@@ -44,6 +45,9 @@ fun JaiqalNavHost(
     contentPadding: PaddingValues,
     themeMode: ThemeMode,
     onThemeSelected: (ThemeMode) -> Unit,
+    language: AppLanguage,
+    onLanguageSelected: (AppLanguage) -> Unit,
+    onOpenPrivacyPolicy: (String) -> Unit,
     sessionState: SessionState,
     onRetrySession: () -> Unit,
 ) {
@@ -66,7 +70,7 @@ fun JaiqalNavHost(
             }
         }
         authGraph(appState.navController)
-        mainGraph(appState, themeMode, onThemeSelected)
+        mainGraph(appState, themeMode, language, onThemeSelected, onLanguageSelected, onOpenPrivacyPolicy)
         plantDetailScreens(
             navController = appState.navController,
             onClaimDevice = appState.navController::navigateToClaimDevice,
@@ -81,7 +85,10 @@ fun JaiqalNavHost(
 private fun NavGraphBuilder.mainGraph(
     appState: JaiqalAppState,
     themeMode: ThemeMode,
+    language: AppLanguage,
     onThemeSelected: (ThemeMode) -> Unit,
+    onLanguageSelected: (AppLanguage) -> Unit,
+    onOpenPrivacyPolicy: (String) -> Unit,
 ) {
     fun navigate(section: MainSection) {
         val route = when (section) {
@@ -117,7 +124,13 @@ private fun NavGraphBuilder.mainGraph(
         composable<SettingsRoute> {
             MainScaffold(MainSection.SETTINGS, ::navigate) { padding ->
                 Box(Modifier.withMainContentPadding(padding)) {
-                    SettingsPlaceholderScreen(themeMode, onThemeSelected)
+                    SettingsScreen(
+                        themeMode = themeMode,
+                        language = language,
+                        onThemeSelected = onThemeSelected,
+                        onLanguageSelected = onLanguageSelected,
+                        onOpenPrivacyPolicy = onOpenPrivacyPolicy,
+                    )
                 }
             }
         }

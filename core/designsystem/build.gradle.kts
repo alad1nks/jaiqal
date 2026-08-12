@@ -27,8 +27,12 @@ kotlin {
     sourceSets.commonMain.dependencies {
         implementation(libs.compose.foundation)
         implementation(libs.compose.material3)
+        implementation(libs.kotlinx.datetime)
         implementation(libs.compose.runtime)
         implementation(libs.compose.ui)
+    }
+    sourceSets.commonTest.dependencies {
+        implementation(kotlin("test"))
     }
 }
 

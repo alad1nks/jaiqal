@@ -16,7 +16,7 @@ The Gradle graph follows `launcher -> app:shared -> feature -> core`:
 
 This is a pragmatic feature modularization: substantial product features get a module, while `data`, `domain`, and `presentation` remain packages inside a feature rather than becoming a module each. Feature navigation and DI stay with the feature; `:app:shared` only connects them.
 
-Plant history, realtime, device workflows, and alert management are implemented through Step 8 of `frontend-task.md`.
+Plant history, realtime, device workflows, alert management, and settings/localization are implemented through Step 9 of `frontend-task.md`.
 
 ## Firebase Authentication
 
@@ -92,6 +92,23 @@ The rule editor keeps unsaved drafts separate from server-backed rules, validate
 
 Application configuration and Koin bootstrap are created by Android/iOS entry points before composition. UI code no longer receives or constructs a backend base URL.
 
+## Settings, localization, and accessibility
+
+The settings feature exposes the account email and verification state, resend-verification and logout actions, application version, language, theme, and an optional privacy-policy link. Debug builds additionally show non-secret diagnostics (platform, environment, and backend URL); release builds do not construct or render that section. Theme and language are stored in the shared SQLDelight preferences table and survive process restarts without storing credentials.
+
+Russian is the default resource locale, with complete English (`values-en`) and Kazakh (`values-kk`) resource sets. Choosing `System`, `Қазақша`, `Русский`, or `English` applies the locale immediately where the platform supports runtime locale changes; choosing the system option returns control to the operating-system locale. Dates, times, decimals, percentages, and temperatures are formatted according to the active locale while preserving the API's units.
+
+Interactive controls use semantic roles and selected states, meaningful images have content descriptions, status is always conveyed by text as well as color, and touch targets use the design system's 48 dp minimum. Charts retain visible textual values and accessible min/max summaries, so their meaning is not available only through the plotted line.
+
+The privacy-policy URL is optional and contains no secret. Configure it per build without editing UI code:
+
+```bash
+./gradlew :app:androidApp:assembleDebug \
+  -PJAIQAL_PRIVACY_POLICY_URL=https://example.com/privacy
+```
+
+For iOS, set `PRIVACY_POLICY_URL` in `app/iosApp/Configuration/Config.xcconfig` or the ignored local configuration used by the Xcode target. When it is empty, Settings shows a localized placeholder instead of a broken link.
+
 ## Backend environments
 
 | Target | Debug/local default | Production configuration |
@@ -118,6 +135,7 @@ The checked-in production endpoint is intentionally non-routable. Supply a real 
 ./gradlew :core:data:jvmTest :feature:auth:jvmTest :feature:plants:jvmTest
 ./gradlew :feature:devices:jvmTest
 ./gradlew :feature:alerts:jvmTest
+./gradlew :feature:settings:jvmTest
 ./gradlew :app:shared:jvmTest :app:shared:iosSimulatorArm64Test
 ```
 
