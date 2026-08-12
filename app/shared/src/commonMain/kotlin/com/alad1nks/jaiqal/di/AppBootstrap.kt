@@ -7,6 +7,8 @@ import com.alad1nks.jaiqal.core.network.BackendConfig
 import com.alad1nks.jaiqal.core.network.DefaultBackendConfig
 import com.alad1nks.jaiqal.core.database.DatabaseDriverFactory
 import com.alad1nks.jaiqal.core.config.AppInfo
+import com.alad1nks.jaiqal.core.diagnostics.CrashReporter
+import com.alad1nks.jaiqal.core.diagnostics.NoOpCrashReporter
 import io.ktor.client.HttpClient
 import org.koin.dsl.KoinConfiguration
 import org.koin.dsl.koinConfiguration
@@ -21,9 +23,10 @@ fun createAppConfiguration(
     httpClient: HttpClient?,
     databaseDriverFactory: DatabaseDriverFactory?,
     appInfo: AppInfo = AppInfo("1.0", "Preview", true, null),
+    crashReporter: CrashReporter = NoOpCrashReporter,
 ): AppBootstrap = AppBootstrap(
     koinConfiguration {
-        modules(appModules(backendConfig, authProvider, httpClient, databaseDriverFactory, appInfo))
+        modules(appModules(backendConfig, authProvider, httpClient, databaseDriverFactory, appInfo, crashReporter))
     },
 )
 

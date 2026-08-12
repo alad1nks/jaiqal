@@ -76,6 +76,7 @@ kotlin {
             implementation(libs.ktor.client.okhttp)
             implementation(project.dependencies.platform(libs.firebase.bom))
             implementation(libs.firebase.auth)
+            implementation(libs.firebase.crashlytics)
         }
         iosMain.dependencies { implementation(libs.ktor.client.darwin) }
         jvmTest.dependencies { implementation(libs.sqldelight.sqliteDriver) }

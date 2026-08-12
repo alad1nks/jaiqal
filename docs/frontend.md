@@ -16,7 +16,7 @@ The Gradle graph follows `launcher -> app:shared -> feature -> core`:
 
 This is a pragmatic feature modularization: substantial product features get a module, while `data`, `domain`, and `presentation` remain packages inside a feature rather than becoming a module each. Feature navigation and DI stay with the feature; `:app:shared` only connects them.
 
-Plant history, realtime, device workflows, alert management, and settings/localization are implemented through Step 9 of `frontend-task.md`.
+Plant history, realtime, device workflows, alert management, settings/localization, and Crashlytics integration are implemented through Step 10 of `frontend-task.md`.
 
 ## Firebase Authentication
 
@@ -108,6 +108,16 @@ The privacy-policy URL is optional and contains no secret. Configure it per buil
 ```
 
 For iOS, set `PRIVACY_POLICY_URL` in `app/iosApp/Configuration/Config.xcconfig` or the ignored local configuration used by the Xcode target. When it is empty, Settings shows a localized placeholder instead of a broken link.
+
+## Push dependency and Crashlytics
+
+The backend currently has no authenticated endpoint for registering, rotating, or deactivating a user's FCM token. Consequently, the client deliberately does not include Firebase Messaging, request notification permission, obtain an FCM/APNs token, or invent a URL. `PushTokenRegistrar` and `UnavailablePushTokenRegistrar` define the common boundary. Enabling push later requires a backend contract that accepts a platform and token with a Firebase ID Token, supports idempotent rotation/deactivation, and defines notification payload fields for plant/alert deep links. APNs setup on iOS belongs to that later integration.
+
+Crashlytics is linked through the Firebase Android BOM and the existing Firebase Apple Swift package. Debug collection is disabled before SDK initialization by Android manifest metadata and `Info-Debug.plist`; release collection is enabled. The common reporter accepts only a closed set of non-personal issue codes and deduplicates each code for the process lifetime. It never accepts arbitrary messages, passwords, Firebase ID Tokens, FCM tokens, ESP32 Device Tokens, email addresses, or user IDs.
+
+When `app/androidApp/google-services.json` is present, the Android build applies both Google Services and the Crashlytics Gradle plugin. Release minification generates a mapping file and the plugin handles its upload. The Xcode target links `FirebaseCrashlytics`; its final Release build phase invokes Firebase's symbol uploader for dSYM files when the built app contains `GoogleService-Info.plist`. Missing Firebase configuration keeps local builds functional and prints a release-build warning instead of uploading symbols.
+
+After adding both ignored Firebase configuration files, make one controlled release test crash per platform and confirm it appears in the Firebase console. Do not add Analytics, Firestore, Realtime Database, or Messaging as part of this setup.
 
 ## Backend environments
 

@@ -14,6 +14,7 @@ import io.ktor.client.engine.okhttp.OkHttp
 import android.util.Log
 import com.alad1nks.jaiqal.AndroidAppContext
 import com.alad1nks.jaiqal.core.config.AppInfo
+import com.alad1nks.jaiqal.createAndroidCrashReporter
 
 fun createAndroidAppConfiguration(
     context: Context,
@@ -27,6 +28,7 @@ fun createAndroidAppConfiguration(
     AndroidAppContext.value = context.applicationContext
     val backendConfig = DefaultBackendConfig(AppEnvironment.from(environmentName), backendBaseUrl)
     val authProvider = createAndroidAuthProvider(context)
+    val firebaseConfigured = FirebaseApp.getApps(context).isNotEmpty()
     val httpClient = createApiHttpClient(
         engine = OkHttp,
         enableDebugLogging = enableNetworkLogging,
@@ -38,6 +40,7 @@ fun createAndroidAppConfiguration(
         httpClient,
         AndroidDatabaseDriverFactory(context),
         AppInfo(appVersion, "Android ${android.os.Build.VERSION.RELEASE}", isDebug, privacyPolicyUrl),
+        createAndroidCrashReporter(firebaseConfigured),
     )
 }
 

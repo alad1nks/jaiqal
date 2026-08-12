@@ -13,6 +13,7 @@ plugins {
 
 if (file("google-services.json").isFile) {
     apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
 }
 
 kotlin {
@@ -40,6 +41,7 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
+        manifestPlaceholders["crashlyticsCollectionEnabled"] = "false"
         buildConfigField("String", "PRIVACY_POLICY_URL", "\"${privacyPolicyUrl.get()}\"")
     }
     packaging {
@@ -53,7 +55,9 @@ android {
             buildConfigField("String", "APP_ENVIRONMENT", "\"local\"")
         }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            manifestPlaceholders["crashlyticsCollectionEnabled"] = "true"
             buildConfigField("String", "API_BASE_URL", "\"${productionApiBaseUrl.get()}\"")
             buildConfigField("String", "APP_ENVIRONMENT", "\"production\"")
             proguardFiles(

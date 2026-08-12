@@ -11,4 +11,5 @@ plugins {
     alias(libs.plugins.ktor) apply false
     alias(libs.plugins.sqldelight) apply false
     alias(libs.plugins.googleServices) apply false
+    alias(libs.plugins.firebaseCrashlytics) apply false
 }
