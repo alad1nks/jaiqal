@@ -157,6 +157,8 @@ The Android/iOS client uses an account-scoped SQLDelight offline cache. Reads fo
 
 The shared client includes cache-first plant list/details screens and server-first create/edit forms backed by the existing `/api/v1/plants`, device, telemetry, and alert contracts. Details show only measurements and alert states supplied by the backend; the client does not invent plant-health diagnoses.
 
+Plant details provide server-aggregated 24-hour, 7-day, and 30-day charts and authenticated foreground-only SSE updates. Realtime events refresh the shared SQLDelight cache; reconnect is bounded with exponential backoff and stops on background or logout.
+
 - Android: `./gradlew :app:androidApp:assembleDebug`
 - Desktop: `./gradlew :app:desktopApp:run`
 - Web: `./gradlew :app:webApp:wasmJsBrowserDevelopmentRun`

@@ -12,7 +12,7 @@ The client uses the existing `:app:shared` module as the shared Compose Multipla
 - `core/connectivity/` and `core/lifecycle/` define shared state boundaries for later features.
 - `di/` provides the Koin application module.
 
-Plant, alert, and device features are still placeholders for later steps in `frontend-task.md`; the authentication flow is implemented in Step 2.
+Plant history and realtime are implemented through Step 6 of `frontend-task.md`; alert management and device workflows remain later steps.
 
 ## Firebase Authentication
 
@@ -64,7 +64,13 @@ The list renders SQLDelight data immediately, then refreshes `/api/v1/plants`, `
 
 Create and edit send only the actual API fields `name`, `species`, and `imageUrl`. Client validation mirrors the backend/database limits: a trimmed 1–255 character name, species up to 255 characters, and image URL up to 2048 characters. Mutations are server-first and cache the returned server-generated ID; an offline mutation shows an explicit error and creates no optimistic plant.
 
-Plant details display available telemetry with units and measurement timestamps, use the backend `online` flag for stale/offline presentation, mark metric warnings only from active backend alert types, expose calibration status, and show a compact cached 24-hour history summary. Full selectable charts and realtime SSE remain Step 6. Device claiming and calibration actions are visible but intentionally hand off to the device workflow planned for Step 7.
+Plant details display available telemetry with units and measurement timestamps, use the backend `online` flag for stale/offline presentation, mark metric warnings only from active backend alert types, and expose calibration status. Device claiming and calibration actions are visible but intentionally hand off to the device workflow planned for Step 7.
+
+## Measurement history and realtime
+
+Step 6 adds selectable 24-hour, 7-day, and 30-day history ranges. Requests use the backend aggregation intervals `5m`, `1h`, and `1d` respectively, keeping large responses bounded and server-aggregated. Four focused Compose Canvas charts show soil moisture, air temperature, air humidity, and light. Soil moisture falls back to raw ADC values when calibrated percentages are unavailable. Each chart includes units, local-time labels, textual min/max accessibility information, visible point markers, and separate line segments around missing values or unexpectedly large time gaps. Loading, empty, cached-error, and retry states are handled per selected range.
+
+Plant details connect to the authenticated `/api/v1/plants/{plantId}/stream` SSE endpoint only while the screen is in the foreground. The Firebase ID Token is attached as a bearer credential and is never persisted. A measurement event triggers network refresh of latest telemetry, active alerts, and the currently selected history range; SQLDelight remains the source observed by UI flows. Reconnect uses bounded exponential backoff with jitter, stops in background, and is cancelled by logout. Returning to the foreground performs a full plant refresh. The app does not poll every few seconds and does not attempt permanent background monitoring.
 
 Application configuration and Koin bootstrap are created by Android/iOS entry points before composition. UI code no longer receives or constructs a backend base URL.
 

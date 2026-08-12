@@ -29,8 +29,15 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class PlantRepositoryTest {
     private val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).also(JaiqalDatabase.Schema::create)
     private val cache = SqlDelightOfflineCache(JaiqalDatabase(driver))
@@ -40,6 +47,7 @@ class PlantRepositoryTest {
     private val remote = FakePlantRemoteDataSource()
     private val repository = OfflineFirstPlantRepository(
         remote = remote,
+        realtime = { emptyFlow() },
         cache = cache,
         userSessionStore = session,
         syncCoordinator = SyncCoordinator(),
@@ -112,6 +120,61 @@ class PlantRepositoryTest {
         assertEquals(RefreshResult.Updated, repository.refreshPlant("plant-a", key))
 
         assertEquals(41.0, repository.observePlant("plant-a", key).first()?.history?.points?.single()?.soilMoisturePercent)
+    }
+
+    @Test
+    fun historyRangesUseServerAggregationAppropriateForTheirSize() {
+        assertEquals(HistoryInterval.FIVE_MINUTES, repository.historyKey("plant-a", HistoryRange.LAST_24_HOURS).interval)
+        assertEquals(HistoryInterval.ONE_HOUR, repository.historyKey("plant-a", HistoryRange.LAST_7_DAYS).interval)
+        assertEquals(HistoryInterval.ONE_DAY, repository.historyKey("plant-a", HistoryRange.LAST_30_DAYS).interval)
+    }
+
+    @Test
+    fun realtimeRefreshUpdatesLatestAndSelectedHistoryCache() = runTest {
+        remote.latestByPlant["plant-a"] = latest("plant-a", "device-a").copy(soilMoisturePercent = 55.0)
+        remote.historyResponse = PlantHistoryResponse(
+            "plant-a",
+            HistoryInterval.ONE_HOUR,
+            listOf(PlantHistoryPoint("2026-07-29T11:00:00Z", soilMoisturePercent = 55.0)),
+        )
+        val key = repository.historyKey("plant-a", HistoryRange.LAST_7_DAYS)
+
+        assertEquals(RefreshResult.Updated, repository.refreshRealtimeState("plant-a", key))
+
+        assertEquals(55.0, cache.observeLatestStates(ACCOUNT_ID).first().single().soilMoisturePercent)
+        assertEquals(55.0, cache.observeHistory(key).first()?.points?.single()?.soilMoisturePercent)
+    }
+
+    @Test
+    fun logoutCancelsActiveRealtimeStream() = runTest {
+        var streamStarted = false
+        var streamCancelled = false
+        val realtimeRepository = OfflineFirstPlantRepository(
+            remote = remote,
+            realtime = {
+                flow {
+                    streamStarted = true
+                    try {
+                        awaitCancellation()
+                    } finally {
+                        streamCancelled = true
+                    }
+                }
+            },
+            cache = cache,
+            userSessionStore = session,
+            syncCoordinator = SyncCoordinator(),
+            now = { NOW },
+        )
+        val collection = launch { realtimeRepository.realtimeMeasurements("plant-a").collect {} }
+        advanceUntilIdle()
+
+        session.clear()
+        advanceUntilIdle()
+
+        assertTrue(streamStarted)
+        assertTrue(streamCancelled)
+        collection.cancel()
     }
 
     private class FakePlantRemoteDataSource : PlantRemoteDataSource {

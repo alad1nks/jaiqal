@@ -24,7 +24,9 @@ import com.alad1nks.jaiqal.feature.auth.presentation.AuthViewModel
 import com.alad1nks.jaiqal.feature.auth.presentation.VerifyEmailViewModel
 import com.alad1nks.jaiqal.feature.settings.presentation.SettingsViewModel
 import com.alad1nks.jaiqal.feature.plants.data.ApiPlantRemoteDataSource
+import com.alad1nks.jaiqal.feature.plants.data.ApiPlantRealtimeDataSource
 import com.alad1nks.jaiqal.feature.plants.data.PlantRemoteDataSource
+import com.alad1nks.jaiqal.feature.plants.data.PlantRealtimeDataSource
 import com.alad1nks.jaiqal.feature.plants.domain.OfflineFirstPlantRepository
 import com.alad1nks.jaiqal.feature.plants.domain.PlantRepository
 import com.alad1nks.jaiqal.feature.plants.presentation.CreatePlantViewModel
@@ -60,12 +62,13 @@ fun appModule(
         single<ApiClient> { KtorApiClient(get(), get(), get()) }
         single<CurrentUserGateway> { ApiCurrentUserGateway(get()) }
         single<PlantRemoteDataSource> { ApiPlantRemoteDataSource(get()) }
+        single<PlantRealtimeDataSource> { ApiPlantRealtimeDataSource(get(), get(), get(), get()) }
     } else {
         single<CurrentUserGateway> { UnavailableCurrentUserGateway() }
     }
     single { UserSessionStore() }
     if (httpClient != null) {
-        single<PlantRepository> { OfflineFirstPlantRepository(get(), get(), get(), get()) }
+        single<PlantRepository> { OfflineFirstPlantRepository(get(), get(), get(), get(), get()) }
         viewModel { PlantsViewModel(get()) }
         viewModel { parameters -> PlantDetailsViewModel(parameters.get(), get()) }
         viewModel { CreatePlantViewModel(get()) }
