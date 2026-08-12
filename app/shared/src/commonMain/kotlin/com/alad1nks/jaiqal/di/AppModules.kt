@@ -3,6 +3,7 @@ package com.alad1nks.jaiqal.di
 import com.alad1nks.jaiqal.app.AppViewModel
 import com.alad1nks.jaiqal.core.auth.AuthProvider
 import com.alad1nks.jaiqal.core.database.DatabaseDriverFactory
+import com.alad1nks.jaiqal.core.config.AppInfo
 import com.alad1nks.jaiqal.core.di.coreDataModule
 import com.alad1nks.jaiqal.core.network.BackendConfig
 import com.alad1nks.jaiqal.feature.auth.di.authModule
@@ -17,8 +18,9 @@ import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.koinApplication
 import org.koin.dsl.module
 
-private val appModule = module {
-    viewModel { AppViewModel(get(), get(), get(), get(), get()) }
+private fun appModule(appInfo: AppInfo) = module {
+    single { appInfo }
+    viewModel { AppViewModel(get(), get(), get(), get(), get(), get()) }
 }
 
 internal fun appModules(
@@ -26,9 +28,10 @@ internal fun appModules(
     authProvider: AuthProvider,
     httpClient: HttpClient?,
     databaseDriverFactory: DatabaseDriverFactory?,
+    appInfo: AppInfo,
 ): List<Module> = buildList {
     add(coreDataModule(backendConfig, authProvider, httpClient, databaseDriverFactory))
-    add(appModule)
+    add(appModule(appInfo))
     add(authModule)
     add(settingsModule)
     if (httpClient != null) {
@@ -43,6 +46,7 @@ fun createKoinApplication(
     authProvider: AuthProvider,
     httpClient: HttpClient? = null,
     databaseDriverFactory: DatabaseDriverFactory? = null,
+    appInfo: AppInfo = AppInfo("1.0", "Test", true, null),
 ): KoinApplication = koinApplication {
-    modules(appModules(backendConfig, authProvider, httpClient, databaseDriverFactory))
+    modules(appModules(backendConfig, authProvider, httpClient, databaseDriverFactory, appInfo))
 }

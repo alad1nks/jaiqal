@@ -16,6 +16,10 @@ import com.alad1nks.jaiqal.api.contract.CurrentUserResponse
 import com.alad1nks.jaiqal.core.cache.OfflineCache
 import com.alad1nks.jaiqal.core.designsystem.theme.ThemeMode
 import com.alad1nks.jaiqal.core.network.SessionErrorStore
+import com.alad1nks.jaiqal.core.preferences.AppLanguage
+import com.alad1nks.jaiqal.core.preferences.AppPreferences
+import com.alad1nks.jaiqal.core.preferences.AppThemePreference
+import com.alad1nks.jaiqal.core.preferences.InMemoryAppPreferences
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
@@ -37,6 +41,8 @@ enum class SessionState {
 data class AppUiState(
     val session: SessionState = SessionState.LOADING,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val language: AppLanguage = AppLanguage.SYSTEM,
+    val preferencesLoaded: Boolean = false,
 )
 
 class AppViewModel(
@@ -45,12 +51,24 @@ class AppViewModel(
     private val userSessionStore: UserSessionStore,
     private val sessionErrorStore: SessionErrorStore,
     private val offlineCache: OfflineCache,
+    private val appPreferences: AppPreferences = InMemoryAppPreferences(),
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(AppUiState())
     val state: StateFlow<AppUiState> = mutableState.asStateFlow()
     private var synchronizationJob: Job? = null
 
     init {
+        viewModelScope.launch {
+            appPreferences.state.collectLatest { preferences ->
+                mutableState.update {
+                    it.copy(
+                        themeMode = preferences.theme.toThemeMode(),
+                        language = preferences.language,
+                        preferencesLoaded = true,
+                    )
+                }
+            }
+        }
         viewModelScope.launch {
             authProvider.authState.collectLatest(::handleAuthState)
         }
@@ -115,7 +133,11 @@ class AppViewModel(
     }
 
     fun setTheme(mode: ThemeMode) {
-        mutableState.update { it.copy(themeMode = mode) }
+        viewModelScope.launch { appPreferences.setTheme(mode.toPreference()) }
+    }
+
+    fun setLanguage(language: AppLanguage) {
+        viewModelScope.launch { appPreferences.setLanguage(language) }
     }
 
     private suspend fun clearCurrentAccount() {
@@ -140,6 +162,18 @@ class AppViewModel(
             // The server response remains the source of truth when local persistence fails.
         }
     }
+}
+
+private fun AppThemePreference.toThemeMode() = when (this) {
+    AppThemePreference.SYSTEM -> ThemeMode.SYSTEM
+    AppThemePreference.LIGHT -> ThemeMode.LIGHT
+    AppThemePreference.DARK -> ThemeMode.DARK
+}
+
+private fun ThemeMode.toPreference() = when (this) {
+    ThemeMode.SYSTEM -> AppThemePreference.SYSTEM
+    ThemeMode.LIGHT -> AppThemePreference.LIGHT
+    ThemeMode.DARK -> AppThemePreference.DARK
 }
 
 @Stable

@@ -8,6 +8,8 @@
 	<string>$(API_BASE_URL)</string>
 	<key>JAIQAL_APP_ENVIRONMENT</key>
 	<string>$(APP_ENVIRONMENT)</string>
+	<key>JAIQAL_PRIVACY_POLICY_URL</key>
+	<string>$(PRIVACY_POLICY_URL)</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

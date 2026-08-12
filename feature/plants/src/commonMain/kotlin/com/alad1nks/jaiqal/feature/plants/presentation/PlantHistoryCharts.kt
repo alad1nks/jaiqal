@@ -24,13 +24,12 @@ import com.alad1nks.jaiqal.api.contract.PlantHistoryPoint
 import com.alad1nks.jaiqal.api.contract.PlantHistoryResponse
 import com.alad1nks.jaiqal.core.designsystem.component.JaiqalCard
 import com.alad1nks.jaiqal.core.designsystem.theme.JaiqalTheme
+import com.alad1nks.jaiqal.core.designsystem.format.localizedDecimal
+import com.alad1nks.jaiqal.core.designsystem.format.localizedTimestamp
 import com.alad1nks.jaiqal.feature.plants.domain.HistoryRange
 import jaiqal.resources.generated.resources.Res
 import jaiqal.resources.generated.resources.*
 import kotlin.time.Instant
-import kotlin.math.round
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.stringResource
 
 private enum class HistoryMetric(
@@ -140,8 +139,8 @@ private fun HistoryLineChart(history: PlantHistoryResponse, metric: HistoryMetri
             Res.string.chart_accessibility,
             title,
             samples.size,
-            formatMetric(minimum),
-            formatMetric(maximum),
+            localizedDecimal(minimum),
+            localizedDecimal(maximum),
             unit,
         )
         val lineColor = MaterialTheme.colorScheme.primary
@@ -172,14 +171,14 @@ private fun HistoryLineChart(history: PlantHistoryResponse, metric: HistoryMetri
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(formatLocalTimestamp(start), style = MaterialTheme.typography.labelSmall)
-            Text(formatLocalTimestamp(end), style = MaterialTheme.typography.labelSmall)
+            Text(localizedTimestamp(start), style = MaterialTheme.typography.labelSmall)
+            Text(localizedTimestamp(end), style = MaterialTheme.typography.labelSmall)
         }
         Text(
             stringResource(
                 Res.string.chart_range,
-                formatMetric(minimum),
-                formatMetric(maximum),
+                localizedDecimal(minimum),
+                localizedDecimal(maximum),
                 unit,
             ),
             style = MaterialTheme.typography.bodySmall,
@@ -210,12 +209,3 @@ private fun HistoryMetric.label(): String = stringResource(
 private fun plantHistoryErrorMessage(error: PlantUiError): String = stringResource(
     if (error == PlantUiError.OFFLINE) Res.string.history_offline_error else Res.string.history_load_error,
 )
-
-internal fun formatLocalTimestamp(instant: Instant): String {
-    val local = instant.toLocalDateTime(TimeZone.currentSystemDefault())
-    return "${local.day.twoDigits()}.${(local.month.ordinal + 1).twoDigits()} " +
-        "${local.hour.twoDigits()}:${local.minute.twoDigits()}"
-}
-
-private fun Int.twoDigits(): String = toString().padStart(2, '0')
-private fun formatMetric(value: Double): String = (round(value * 10) / 10.0).toString()

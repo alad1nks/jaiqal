@@ -89,6 +89,11 @@ CREATE TABLE cached_alert_rule (
     PRIMARY KEY (account_id, id)
 );
 
+CREATE TABLE app_preference (
+    preference_key TEXT NOT NULL PRIMARY KEY,
+    preference_value TEXT NOT NULL
+);
+
 selectCacheMetadata:
 SELECT * FROM cache_metadata
 WHERE account_id = ? AND cache_key = ?;
@@ -201,3 +206,10 @@ DELETE FROM cached_alert_event WHERE account_id = ?;
 
 deleteAlertRulesForAccount:
 DELETE FROM cached_alert_rule WHERE account_id = ?;
+
+selectAppPreferences:
+SELECT * FROM app_preference ORDER BY preference_key;
+
+upsertAppPreference:
+INSERT OR REPLACE INTO app_preference(preference_key, preference_value)
+VALUES (?, ?);

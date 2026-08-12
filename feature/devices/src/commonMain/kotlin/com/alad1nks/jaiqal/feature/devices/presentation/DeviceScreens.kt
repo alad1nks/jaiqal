@@ -36,6 +36,8 @@ import com.alad1nks.jaiqal.core.designsystem.component.OfflineBanner
 import com.alad1nks.jaiqal.core.designsystem.component.StatusBadge
 import com.alad1nks.jaiqal.core.designsystem.component.StatusKind
 import com.alad1nks.jaiqal.core.designsystem.theme.JaiqalTheme
+import com.alad1nks.jaiqal.core.designsystem.format.localizedTimestamp
+import com.alad1nks.jaiqal.core.designsystem.format.localizedDecimal
 import jaiqal.resources.generated.resources.Res
 import jaiqal.resources.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -175,13 +177,19 @@ private fun DeviceDetailsContent(
             Text(stringResource(Res.string.device_id_value, device.id), style = MaterialTheme.typography.bodySmall)
             overview.plant?.let { Text(stringResource(Res.string.device_plant_value, it.name)) }
             device.firmwareVersion?.let { Text(stringResource(Res.string.firmware_value, it)) }
-            device.lastSeenAt?.let { Text(stringResource(Res.string.last_seen_value, it)) }
+            device.lastSeenAt?.let { Text(stringResource(Res.string.last_seen_value, localizedTimestamp(it))) }
         }
         val dryRaw = device.soilDryRaw
         val wetRaw = device.soilWetRaw
         if (dryRaw != null && wetRaw != null) {
             StatusBadge(stringResource(Res.string.sensor_calibrated), StatusKind.SUCCESS)
-            Text(stringResource(Res.string.calibration_values, dryRaw, wetRaw))
+            Text(
+                stringResource(
+                    Res.string.calibration_values,
+                    localizedDecimal(dryRaw.toDouble(), 0),
+                    localizedDecimal(wetRaw.toDouble(), 0),
+                ),
+            )
         } else {
             StatusBadge(stringResource(Res.string.sensor_not_calibrated), StatusKind.NEUTRAL)
         }
@@ -282,7 +290,13 @@ private fun Explanation(title: String, message: String) {
 private fun SampleCard(label: String, sample: com.alad1nks.jaiqal.feature.devices.domain.CalibrationSample) {
     JaiqalCard(Modifier.fillMaxWidth()) {
         Text(label, style = MaterialTheme.typography.titleMedium)
-        Text(stringResource(Res.string.captured_reading, sample.raw, sample.measuredAt))
+        Text(
+            stringResource(
+                Res.string.captured_reading,
+                localizedDecimal(sample.raw.toDouble(), 0),
+                localizedTimestamp(sample.measuredAt),
+            ),
+        )
     }
 }
 

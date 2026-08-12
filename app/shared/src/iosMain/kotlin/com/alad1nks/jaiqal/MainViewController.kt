@@ -9,6 +9,7 @@ import com.alad1nks.jaiqal.core.network.DefaultBackendConfig
 import com.alad1nks.jaiqal.core.network.NetworkLogger
 import com.alad1nks.jaiqal.core.network.createApiHttpClient
 import com.alad1nks.jaiqal.core.database.IosDatabaseDriverFactory
+import com.alad1nks.jaiqal.core.config.AppInfo
 import com.alad1nks.jaiqal.di.createAppConfiguration
 import io.ktor.client.engine.darwin.Darwin
 
@@ -17,6 +18,9 @@ fun MainViewController(
     environmentName: String,
     firebaseAuthBridge: IosFirebaseAuthBridge?,
     enableNetworkLogging: Boolean,
+    appVersion: String,
+    isDebug: Boolean,
+    privacyPolicyUrl: String?,
 ): platform.UIKit.UIViewController {
     val backendConfig = DefaultBackendConfig(AppEnvironment.from(environmentName), backendBaseUrl)
     val authProvider = firebaseAuthBridge?.let(::IosFirebaseAuthProvider) ?: UnavailableAuthProvider()
@@ -30,6 +34,7 @@ fun MainViewController(
         authProvider,
         httpClient,
         IosDatabaseDriverFactory(),
+        AppInfo(appVersion, getPlatform().name, isDebug, privacyPolicyUrl),
     )
     return ComposeUIViewController { App(configuration) }
 }

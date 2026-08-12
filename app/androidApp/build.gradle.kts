@@ -4,6 +4,7 @@ val productionApiBaseUrl = providers.gradleProperty("JAIQAL_PRODUCTION_API_BASE_
     .orElse("https://api.example.invalid")
 val localApiBaseUrl = providers.gradleProperty("JAIQAL_LOCAL_API_BASE_URL")
     .orElse("http://10.0.2.2:8080")
+val privacyPolicyUrl = providers.gradleProperty("JAIQAL_PRIVACY_POLICY_URL").orElse("")
 
 plugins {
     alias(libs.plugins.androidApplication)
@@ -23,6 +24,7 @@ dependencies {
     implementation(project(":app:shared"))
 
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.appcompat)
 
     implementation(libs.compose.uiToolingPreview)
     debugImplementation(libs.compose.uiTooling)
@@ -38,6 +40,7 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
+        buildConfigField("String", "PRIVACY_POLICY_URL", "\"${privacyPolicyUrl.get()}\"")
     }
     packaging {
         resources {

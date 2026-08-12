@@ -53,6 +53,8 @@ import com.alad1nks.jaiqal.core.designsystem.component.OfflineBanner
 import com.alad1nks.jaiqal.core.designsystem.component.StatusBadge
 import com.alad1nks.jaiqal.core.designsystem.component.StatusKind
 import com.alad1nks.jaiqal.core.designsystem.theme.JaiqalTheme
+import com.alad1nks.jaiqal.core.designsystem.format.localizedDecimal
+import com.alad1nks.jaiqal.core.designsystem.format.localizedTimestamp
 import com.alad1nks.jaiqal.feature.plants.domain.PlantOverview
 import jaiqal.resources.generated.resources.Res
 import jaiqal.resources.generated.resources.*
@@ -156,7 +158,9 @@ private fun PlantCard(overview: PlantOverview, onClick: () -> Unit) {
         Spacer(Modifier.height(JaiqalTheme.spacing.medium))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
-                overview.latest?.soilMoisturePercent?.let { stringResource(Res.string.percent_value, it) }
+                overview.latest?.soilMoisturePercent?.let {
+                    stringResource(Res.string.percent_value, localizedDecimal(it))
+                }
                     ?: stringResource(Res.string.no_measurements),
                 style = MaterialTheme.typography.titleMedium,
             )
@@ -171,8 +175,8 @@ private fun PlantCard(overview: PlantOverview, onClick: () -> Unit) {
         }
         overview.latest?.let {
             Text(
-                if (it.online) stringResource(Res.string.last_measurement, formatTimestamp(it.measuredAt))
-                else stringResource(Res.string.stale_measurement, formatTimestamp(it.measuredAt)),
+                if (it.online) stringResource(Res.string.last_measurement, localizedTimestamp(it.measuredAt))
+                else stringResource(Res.string.stale_measurement, localizedTimestamp(it.measuredAt)),
                 style = MaterialTheme.typography.bodySmall,
             )
         }
@@ -294,7 +298,7 @@ private fun PlantDetailsContent(
                     DeviceStatus(overview)
                 }
             }
-            val measuredAt = latest?.measuredAt?.let(::formatTimestamp)
+            val measuredAt = latest?.measuredAt?.let { localizedTimestamp(it) }
             val support = when {
                 measuredAt == null -> stringResource(Res.string.no_measurements)
                 latest.online -> stringResource(Res.string.last_measurement, measuredAt)
@@ -302,7 +306,9 @@ private fun PlantDetailsContent(
             }
             MetricWithAlert(
                 stringResource(Res.string.soil_moisture),
-                latest?.soilMoisturePercent?.let { stringResource(Res.string.percent_value, it) }
+                latest?.soilMoisturePercent?.let {
+                    stringResource(Res.string.percent_value, localizedDecimal(it))
+                }
                     ?: latest?.soilMoistureRaw?.let { stringResource(Res.string.raw_value, it) }
                     ?: stringResource(Res.string.not_available_short),
                 support,
@@ -310,7 +316,9 @@ private fun PlantDetailsContent(
             )
             MetricWithAlert(
                 stringResource(Res.string.air_temperature),
-                latest?.airTemperatureCelsius?.let { stringResource(Res.string.temperature_value, it) }
+                latest?.airTemperatureCelsius?.let {
+                    stringResource(Res.string.temperature_value, localizedDecimal(it))
+                }
                     ?: stringResource(Res.string.not_available_short),
                 support,
                 warning = overview.activeAlerts.any {
@@ -319,7 +327,9 @@ private fun PlantDetailsContent(
             )
             MetricCard(
                 stringResource(Res.string.air_humidity),
-                latest?.airHumidityPercent?.let { stringResource(Res.string.percent_value, it) }
+                latest?.airHumidityPercent?.let {
+                    stringResource(Res.string.percent_value, localizedDecimal(it))
+                }
                     ?: stringResource(Res.string.not_available_short),
                 support,
             )
@@ -485,7 +495,7 @@ private fun PlantImagePlaceholder(modifier: Modifier = Modifier) {
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
     ) {
-        Text("🌿", style = MaterialTheme.typography.headlineLarge)
+        Text(stringResource(Res.string.plant_placeholder_symbol), style = MaterialTheme.typography.headlineLarge)
     }
 }
 
@@ -507,8 +517,3 @@ private fun AlertType.label(): String = when (this) {
     AlertType.HIGH_TEMPERATURE, AlertType.LOW_TEMPERATURE -> stringResource(Res.string.air_temperature)
     AlertType.DEVICE_OFFLINE -> stringResource(Res.string.device_offline)
 }
-
-private fun formatTimestamp(value: String): String = value
-    .replace('T', ' ')
-    .removeSuffix("Z")
-    .take(16)
