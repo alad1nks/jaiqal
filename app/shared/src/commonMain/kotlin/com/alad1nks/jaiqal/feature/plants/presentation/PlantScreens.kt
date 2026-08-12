@@ -27,6 +27,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -36,9 +37,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.alad1nks.jaiqal.api.contract.AlertType
-import com.alad1nks.jaiqal.api.contract.PlantHistoryPoint
 import com.alad1nks.jaiqal.core.designsystem.component.EmptyState
 import com.alad1nks.jaiqal.core.designsystem.component.ErrorState
 import com.alad1nks.jaiqal.core.designsystem.component.JaiqalButton
@@ -204,6 +207,24 @@ fun PlantDetailsScreen(
     viewModel: PlantDetailsViewModel = koinViewModel { parametersOf(plantId) },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> viewModel.onForeground()
+                Lifecycle.Event.ON_STOP -> viewModel.onBackground()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+            viewModel.onForeground()
+        }
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            viewModel.onBackground()
+        }
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -228,6 +249,11 @@ fun PlantDetailsScreen(
             else -> PlantDetailsContent(
                 details = state.details!!,
                 cached = state.isCached,
+                selectedRange = state.selectedRange,
+                historyLoading = state.isHistoryLoading,
+                historyError = state.historyError,
+                onSelectHistoryRange = viewModel::selectHistoryRange,
+                onRetryHistory = viewModel::retryHistory,
                 onClaimDevice = onClaimDevice,
                 onCalibrate = onCalibrate,
                 modifier = Modifier.padding(padding),
@@ -240,6 +266,11 @@ fun PlantDetailsScreen(
 private fun PlantDetailsContent(
     details: com.alad1nks.jaiqal.feature.plants.domain.PlantDetails,
     cached: Boolean,
+    selectedRange: com.alad1nks.jaiqal.feature.plants.domain.HistoryRange,
+    historyLoading: Boolean,
+    historyError: PlantUiError?,
+    onSelectHistoryRange: (com.alad1nks.jaiqal.feature.plants.domain.HistoryRange) -> Unit,
+    onRetryHistory: () -> Unit,
     onClaimDevice: () -> Unit,
     onCalibrate: () -> Unit,
     modifier: Modifier = Modifier,
@@ -304,7 +335,14 @@ private fun PlantDetailsContent(
                 )
             }
             AlertsSummary(overview)
-            HistorySummary(details.history?.points.orEmpty())
+            PlantHistorySection(
+                history = details.history,
+                selectedRange = selectedRange,
+                loading = historyLoading,
+                error = historyError,
+                onSelectRange = onSelectHistoryRange,
+                onRetry = onRetryHistory,
+            )
             if (overview.device == null) {
                 JaiqalButton(stringResource(Res.string.claim_device), onClaimDevice, Modifier.fillMaxWidth())
             } else {
@@ -338,25 +376,6 @@ private fun AlertsSummary(overview: PlantOverview) {
         } else {
             overview.activeAlerts.forEach { alert ->
                 StatusBadge(alert.type.label(), StatusKind.WARNING, Modifier.padding(top = 6.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun HistorySummary(points: List<PlantHistoryPoint>) {
-    JaiqalCard(Modifier.fillMaxWidth()) {
-        Text(stringResource(Res.string.history_last_day), style = MaterialTheme.typography.titleMedium)
-        if (points.isEmpty()) {
-            Text(stringResource(Res.string.history_empty))
-        } else {
-            Text(stringResource(Res.string.history_points, points.size))
-            points.takeLast(3).forEach { point ->
-                Text(
-                    "${formatTimestamp(point.measuredAt)} · " +
-                        (point.soilMoisturePercent?.let { "${roundOne(it)} %" } ?: "—"),
-                    style = MaterialTheme.typography.bodySmall,
-                )
             }
         }
     }
@@ -481,5 +500,3 @@ private fun formatTimestamp(value: String): String = value
     .replace('T', ' ')
     .removeSuffix("Z")
     .take(16)
-
-private fun roundOne(value: Double): String = ((value * 10).toInt() / 10.0).toString()

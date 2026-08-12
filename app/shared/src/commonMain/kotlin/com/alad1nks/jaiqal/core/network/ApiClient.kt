@@ -10,6 +10,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.plugins.logging.Logger
+import io.ktor.client.plugins.sse.SSE
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.accept
 import io.ktor.client.request.bearerAuth
@@ -118,6 +119,10 @@ private fun HttpClientConfig<*>.configureApiClient(
         connectTimeoutMillis = CONNECT_TIMEOUT_MILLIS
         requestTimeoutMillis = REQUEST_TIMEOUT_MILLIS
         socketTimeoutMillis = SOCKET_TIMEOUT_MILLIS
+    }
+    install(SSE) {
+        // Reconnect is coordinated by the repository so it can stop on logout/background.
+        maxReconnectionAttempts = 0
     }
     if (enableDebugLogging) {
         install(Logging) {

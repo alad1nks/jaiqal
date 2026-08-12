@@ -50,7 +50,6 @@
     <string name="not_available">Пока недоступно</string>
     <string name="backend_environment">Backend: %1$s</string>
     <string name="plant_details">Растение</string>
-    <string name="plant_details_placeholder">Детали растения %1$s будут реализованы в Шаге 5.</string>
     <string name="plants_load_error_title">Не удалось обновить растения</string>
     <string name="plants_load_error_message">Сохранённые данные не удалены. Проверьте подключение и повторите попытку.</string>
     <string name="claim_device">Привязать устройство</string>
@@ -81,8 +80,6 @@
     <string name="stale_measurement">Данные устарели · %1$s</string>
     <string name="active_alerts">Активных предупреждений: %1$d</string>
     <string name="no_active_alerts">Активных предупреждений нет</string>
-    <string name="history_last_day">История за последние 24 часа</string>
-    <string name="history_points">Точек измерений: %1$d</string>
     <string name="history_empty">Для выбранного периода измерений нет.</string>
     <string name="calibrate_device">Калибровать датчик</string>
     <string name="feature_next_step">Этот сценарий будет подключён на следующем шаге.</string>
@@ -97,4 +94,14 @@
     <string name="metric_warning">Есть активное предупреждение</string>
     <string name="sensor_calibrated">Датчик почвы откалиброван</string>
     <string name="sensor_not_calibrated">Датчик почвы не откалиброван</string>
+    <string name="measurement_history">История измерений</string>
+    <string name="range_24_hours">24 часа</string>
+    <string name="range_7_days">7 дней</string>
+    <string name="range_30_days">30 дней</string>
+    <string name="history_refreshing">История обновляется…</string>
+    <string name="history_offline_error">Не удалось обновить историю. Показаны сохранённые данные, если они доступны.</string>
+    <string name="history_load_error">Не удалось загрузить историю измерений.</string>
+    <string name="metric_has_no_data">Для этой метрики в выбранном периоде данных нет.</string>
+    <string name="chart_accessibility">%1$s: %2$d точек, минимум %3$s %5$s, максимум %4$s %5$s. Разрывы в данных не соединены.</string>
+    <string name="chart_range">Диапазон: %1$s–%2$s %3$s</string>
 </resources>

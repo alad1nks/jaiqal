@@ -8,6 +8,7 @@ import com.alad1nks.jaiqal.api.contract.HistoryInterval
 import com.alad1nks.jaiqal.api.contract.PlantHistoryResponse
 import com.alad1nks.jaiqal.api.contract.PlantLatestResponse
 import com.alad1nks.jaiqal.api.contract.PlantResponse
+import com.alad1nks.jaiqal.api.contract.PlantTelemetryUpdate
 import com.alad1nks.jaiqal.api.contract.UpdatePlantRequest
 import com.alad1nks.jaiqal.core.auth.UserSessionStore
 import com.alad1nks.jaiqal.core.cache.HistoryCacheKey
@@ -16,13 +17,24 @@ import com.alad1nks.jaiqal.core.cache.RefreshResult
 import com.alad1nks.jaiqal.core.cache.SyncCoordinator
 import com.alad1nks.jaiqal.core.network.ApiException
 import com.alad1nks.jaiqal.feature.plants.data.PlantRemoteDataSource
+import com.alad1nks.jaiqal.feature.plants.data.PlantRealtimeDataSource
 import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+
+enum class HistoryRange(val duration: Duration, val interval: HistoryInterval) {
+    LAST_24_HOURS(24.hours, HistoryInterval.FIVE_MINUTES),
+    LAST_7_DAYS(7.days, HistoryInterval.ONE_HOUR),
+    LAST_30_DAYS(30.days, HistoryInterval.ONE_DAY),
+}
 
 data class PlantOverview(
     val plant: PlantResponse,
@@ -39,15 +51,20 @@ data class PlantDetails(
 interface PlantRepository {
     fun observePlants(): Flow<List<PlantOverview>>
     fun observePlant(plantId: String, historyKey: HistoryCacheKey): Flow<PlantDetails?>
+    fun realtimeMeasurements(plantId: String): Flow<PlantTelemetryUpdate>
+    fun historyKey(plantId: String, range: HistoryRange): HistoryCacheKey
     fun lastDayHistoryKey(plantId: String): HistoryCacheKey
     suspend fun refreshPlants(): RefreshResult
     suspend fun refreshPlant(plantId: String, historyKey: HistoryCacheKey): RefreshResult
+    suspend fun refreshHistory(historyKey: HistoryCacheKey): RefreshResult
+    suspend fun refreshRealtimeState(plantId: String, historyKey: HistoryCacheKey): RefreshResult
     suspend fun createPlant(name: String, species: String?, imageUrl: String?): PlantResponse
     suspend fun updatePlant(plantId: String, name: String, species: String?, imageUrl: String?): PlantResponse
 }
 
 class OfflineFirstPlantRepository(
     private val remote: PlantRemoteDataSource,
+    private val realtime: PlantRealtimeDataSource,
     private val cache: OfflineCache,
     private val userSessionStore: UserSessionStore,
     private val syncCoordinator: SyncCoordinator,
@@ -83,16 +100,25 @@ class OfflineFirstPlantRepository(
         cache.observeHistory(historyKey),
     ) { overview, history -> overview?.let { PlantDetails(it, history) } }
 
-    override fun lastDayHistoryKey(plantId: String): HistoryCacheKey {
+    override fun realtimeMeasurements(plantId: String): Flow<PlantTelemetryUpdate> = flow {
+        userSessionStore.session.collectLatest { session ->
+            if (session != null) realtime.measurements(plantId).collect(::emit)
+        }
+    }
+
+    override fun historyKey(plantId: String, range: HistoryRange): HistoryCacheKey {
         val end = now()
         return HistoryCacheKey(
             accountId = accountId(),
             plantId = plantId,
-            interval = HistoryInterval.FIVE_MINUTES,
-            rangeStart = (end - 24.hours).toString(),
+            interval = range.interval,
+            rangeStart = (end - range.duration).toString(),
             rangeEnd = end.toString(),
         )
     }
+
+    override fun lastDayHistoryKey(plantId: String): HistoryCacheKey =
+        historyKey(plantId, HistoryRange.LAST_24_HOURS)
 
     override suspend fun refreshPlants(): RefreshResult {
         val accountId = accountId()
@@ -193,6 +219,42 @@ class OfflineFirstPlantRepository(
             } catch (failure: Throwable) {
                 firstFailure = failure
             }
+        }
+        return firstFailure?.let(RefreshResult::PreservedCache) ?: RefreshResult.Updated
+    }
+
+    override suspend fun refreshHistory(historyKey: HistoryCacheKey): RefreshResult = try {
+        val history = remote.history(
+            historyKey.plantId,
+            historyKey.rangeStart,
+            historyKey.rangeEnd,
+            historyKey.interval,
+        )
+        cache.replaceHistory(historyKey, history)
+        RefreshResult.Updated
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (failure: Throwable) {
+        RefreshResult.PreservedCache(failure)
+    }
+
+    override suspend fun refreshRealtimeState(
+        plantId: String,
+        historyKey: HistoryCacheKey,
+    ): RefreshResult {
+        val accountId = accountId()
+        var firstFailure: Throwable? = null
+        refreshLatest(accountId, plantId) { if (firstFailure == null) firstFailure = it }
+        try {
+            cache.replaceAlertEvents(accountId, plantId, remote.alerts(plantId))
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (failure: Throwable) {
+            firstFailure = firstFailure ?: failure
+        }
+        when (val historyResult = refreshHistory(historyKey)) {
+            RefreshResult.Updated -> Unit
+            is RefreshResult.PreservedCache -> firstFailure = firstFailure ?: historyResult.cause
         }
         return firstFailure?.let(RefreshResult::PreservedCache) ?: RefreshResult.Updated
     }
