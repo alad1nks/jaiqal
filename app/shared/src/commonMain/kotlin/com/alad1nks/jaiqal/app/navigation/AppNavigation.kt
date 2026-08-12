@@ -10,30 +10,28 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.navDeepLink
 import androidx.navigation.navigation
-import androidx.navigation.toRoute
 import com.alad1nks.jaiqal.app.JaiqalAppState
 import com.alad1nks.jaiqal.app.SessionState
 import com.alad1nks.jaiqal.core.designsystem.component.ErrorState
 import com.alad1nks.jaiqal.core.designsystem.component.LoadingState
 import com.alad1nks.jaiqal.core.designsystem.theme.ThemeMode
+import com.alad1nks.jaiqal.feature.alerts.navigation.AlertsRoute
 import com.alad1nks.jaiqal.feature.alerts.presentation.AlertsPlaceholderScreen
-import com.alad1nks.jaiqal.feature.auth.presentation.ForgotPasswordScreen
-import com.alad1nks.jaiqal.feature.auth.presentation.LoginScreen
-import com.alad1nks.jaiqal.feature.auth.presentation.RegisterScreen
-import com.alad1nks.jaiqal.feature.auth.presentation.VerifyEmailScreen
-import com.alad1nks.jaiqal.feature.plants.presentation.CreatePlantScreen
-import com.alad1nks.jaiqal.feature.plants.presentation.EditPlantScreen
-import com.alad1nks.jaiqal.feature.plants.presentation.PlantDetailsScreen
+import com.alad1nks.jaiqal.feature.auth.navigation.authGraph
+import com.alad1nks.jaiqal.feature.plants.navigation.PlantsRoute
+import com.alad1nks.jaiqal.feature.plants.navigation.navigateToCreatePlant
+import com.alad1nks.jaiqal.feature.plants.navigation.navigateToPlantDetails
+import com.alad1nks.jaiqal.feature.plants.navigation.plantDetailScreens
 import com.alad1nks.jaiqal.feature.plants.presentation.PlantsScreen
+import com.alad1nks.jaiqal.feature.settings.navigation.SettingsRoute
 import com.alad1nks.jaiqal.feature.settings.presentation.SettingsPlaceholderScreen
-import jaiqal.app.shared.generated.resources.Res
-import jaiqal.app.shared.generated.resources.loading
-import jaiqal.app.shared.generated.resources.backend_auth_error_message
-import jaiqal.app.shared.generated.resources.backend_auth_error_title
-import jaiqal.app.shared.generated.resources.feature_next_step
-import jaiqal.app.shared.generated.resources.retry
+import jaiqal.resources.generated.resources.Res
+import jaiqal.resources.generated.resources.loading
+import jaiqal.resources.generated.resources.backend_auth_error_message
+import jaiqal.resources.generated.resources.backend_auth_error_title
+import jaiqal.resources.generated.resources.feature_next_step
+import jaiqal.resources.generated.resources.retry
 import org.jetbrains.compose.resources.stringResource
 import kotlinx.coroutines.launch
 
@@ -46,6 +44,7 @@ fun JaiqalNavHost(
     sessionState: SessionState,
     onRetrySession: () -> Unit,
 ) {
+    val unavailable = stringResource(Res.string.feature_next_step)
     NavHost(
         navController = appState.navController,
         startDestination = SplashRoute,
@@ -64,54 +63,11 @@ fun JaiqalNavHost(
                 LoadingState(stringResource(Res.string.loading), Modifier.fillMaxSize())
             }
         }
-        authGraph(appState)
+        authGraph(appState.navController)
         mainGraph(appState, themeMode, onThemeSelected)
-        composable<PlantDetailsRoute>(
-            deepLinks = listOf(navDeepLink<PlantDetailsRoute>(basePath = "jaiqal://plants")),
-        ) { entry ->
-            val route = entry.toRoute<PlantDetailsRoute>()
-            val scope = rememberCoroutineScope()
-            val unavailable = stringResource(Res.string.feature_next_step)
-            PlantDetailsScreen(
-                plantId = route.plantId,
-                onBack = appState.navController::popBackStack,
-                onEdit = { appState.navController.navigate(EditPlantRoute(route.plantId)) },
-                onClaimDevice = { scope.launch { appState.snackbarHostState.showSnackbar(unavailable) } },
-                onCalibrate = { scope.launch { appState.snackbarHostState.showSnackbar(unavailable) } },
-            )
+        plantDetailScreens(appState.navController) {
+            appState.snackbarHostState.showSnackbar(unavailable)
         }
-        composable<CreatePlantRoute> {
-            CreatePlantScreen(
-                onBack = appState.navController::popBackStack,
-                onSaved = { plantId ->
-                    appState.navController.navigate(PlantDetailsRoute(plantId)) {
-                        popUpTo<CreatePlantRoute> { inclusive = true }
-                    }
-                },
-            )
-        }
-        composable<EditPlantRoute> { entry ->
-            val route = entry.toRoute<EditPlantRoute>()
-            EditPlantScreen(
-                plantId = route.plantId,
-                onBack = appState.navController::popBackStack,
-                onSaved = { appState.navController.popBackStack() },
-            )
-        }
-    }
-}
-
-private fun NavGraphBuilder.authGraph(appState: JaiqalAppState) {
-    navigation<AuthGraph>(startDestination = LoginRoute) {
-        composable<LoginRoute> {
-            LoginScreen(
-                onRegister = { appState.navController.navigate(RegisterRoute) },
-                onForgotPassword = { appState.navController.navigate(ForgotPasswordRoute) },
-            )
-        }
-        composable<RegisterRoute> { RegisterScreen(appState.navController::popBackStack) }
-        composable<ForgotPasswordRoute> { ForgotPasswordScreen(appState.navController::popBackStack) }
-        composable<VerifyEmailRoute> { VerifyEmailScreen() }
     }
 }
 
@@ -139,8 +95,8 @@ private fun NavGraphBuilder.mainGraph(
                 val unavailable = stringResource(Res.string.feature_next_step)
                 Box(Modifier.withMainContentPadding(padding)) {
                     PlantsScreen(
-                        onOpenPlant = { appState.navController.navigate(PlantDetailsRoute(it)) },
-                        onCreatePlant = { appState.navController.navigate(CreatePlantRoute) },
+                        onOpenPlant = appState.navController::navigateToPlantDetails,
+                        onCreatePlant = appState.navController::navigateToCreatePlant,
                         onClaimDevice = { scope.launch { appState.snackbarHostState.showSnackbar(unavailable) } },
                     )
                 }

@@ -2,15 +2,19 @@
 
 The client uses the existing `:app:shared` module as the shared Compose Multiplatform application. Android and iOS keep thin platform entry points; API DTOs continue to come from `:core:api-contract`, so backend contracts are not duplicated in client modules.
 
-## Step 1 architecture
+## Client architecture
 
-- `app/` owns startup state, the shared snackbar host, and type-safe root/auth/main navigation.
-- `core/designsystem/` contains the small Material 3 theme and reusable UI states/components.
-- `core/network/` owns environment and backend URL configuration. Repositories must receive `BackendConfig`; they must not contain URLs.
-- `core/database/` contains the SQLDelight driver boundary and account-scoped offline schema.
-- `core/cache/` maps shared API contracts to SQLDelight and defines explicit read/write sync policies.
-- `core/connectivity/` and `core/lifecycle/` define shared state boundaries for later features.
-- `di/` provides the Koin application module.
+The Gradle graph follows `launcher -> app:shared -> feature -> core`:
+
+- `:app:shared` is the product shell. It owns startup state, root/main navigation, platform bootstrap, and the composition root that combines feature modules.
+- `:feature:auth`, `:feature:plants`, `:feature:alerts`, and `:feature:settings` own their screens and routes. A feature also owns its view models, DI declaration, and feature-specific `data/domain/presentation` packages when needed.
+- `:core:data` owns environment/backend configuration, Firebase session abstractions, the Ktor client, SQLDelight driver and account-scoped cache, connectivity/lifecycle boundaries, and shared data bindings. Repositories receive `BackendConfig`; they do not contain URLs.
+- `:core:designsystem` contains the Material 3 theme and reusable UI states/components.
+- `:resources` publishes Compose Multiplatform resources to every UI module.
+- `:core:testing` contains reusable test fixtures without leaking test code into production modules.
+- `:core:api-contract` remains the single shared wire-contract module used by the client and server.
+
+This is a pragmatic feature modularization: substantial product features get a module, while `data`, `domain`, and `presentation` remain packages inside a feature rather than becoming a module each. Feature navigation and DI stay with the feature; `:app:shared` only connects them.
 
 Plant history and realtime are implemented through Step 6 of `frontend-task.md`; alert management and device workflows remain later steps.
 
@@ -30,7 +34,7 @@ Firebase restores its persisted session through the platform auth-state listener
 
 ## Network and session handling
 
-`core/network/` contains one project `ApiClient` backed by Ktor, not a wrapper per HTTP method. It configures JSON content negotiation, connect/request/socket timeouts, common success decoding, the shared `ApiErrorResponse` contract, and stable timeout/connectivity/invalid-response errors. Coroutine cancellation is always rethrown unchanged.
+`:core:data` contains one project `ApiClient` backed by Ktor, not a wrapper per HTTP method. Its `core/network` package configures JSON content negotiation, connect/request/socket timeouts, common success decoding, the shared `ApiErrorResponse` contract, and stable timeout/connectivity/invalid-response errors. Coroutine cancellation is always rethrown unchanged.
 
 Protected calls go through `AuthenticatedRequestExecutor`. It requests a token from `AuthProvider`, attaches `Authorization: Bearer ...`, and retries exactly once after `401` with a forced Firebase refresh. A `Mutex` serializes forced refreshes; requests waiting for another refresh reuse its new token. A second `401` raises a managed session error and never starts a retry loop. ID Tokens are held only for the lifetime of a request and are not persisted by the application.
 
@@ -97,6 +101,7 @@ The checked-in production endpoint is intentionally non-routable. Supply a real 
 ```bash
 ./gradlew :app:androidApp:assembleDebug
 ./gradlew :app:shared:compileKotlinIosSimulatorArm64
+./gradlew :core:data:jvmTest :feature:auth:jvmTest :feature:plants:jvmTest
 ./gradlew :app:shared:jvmTest :app:shared:iosSimulatorArm64Test
 ```
 
