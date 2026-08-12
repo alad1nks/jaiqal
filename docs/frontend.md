@@ -7,7 +7,7 @@ The client uses the existing `:app:shared` module as the shared Compose Multipla
 The Gradle graph follows `launcher -> app:shared -> feature -> core`:
 
 - `:app:shared` is the product shell. It owns startup state, root/main navigation, platform bootstrap, and the composition root that combines feature modules.
-- `:feature:auth`, `:feature:plants`, `:feature:alerts`, and `:feature:settings` own their screens and routes. A feature also owns its view models, DI declaration, and feature-specific `data/domain/presentation` packages when needed.
+- `:feature:auth`, `:feature:plants`, `:feature:devices`, `:feature:alerts`, and `:feature:settings` own their screens and routes. A feature also owns its view models, DI declaration, and feature-specific `data/domain/presentation` packages when needed.
 - `:core:data` owns environment/backend configuration, Firebase session abstractions, the Ktor client, SQLDelight driver and account-scoped cache, connectivity/lifecycle boundaries, and shared data bindings. Repositories receive `BackendConfig`; they do not contain URLs.
 - `:core:designsystem` contains the Material 3 theme and reusable UI states/components.
 - `:resources` publishes Compose Multiplatform resources to every UI module.
@@ -76,6 +76,14 @@ Step 6 adds selectable 24-hour, 7-day, and 30-day history ranges. Requests use t
 
 Plant details connect to the authenticated `/api/v1/plants/{plantId}/stream` SSE endpoint only while the screen is in the foreground. The Firebase ID Token is attached as a bearer credential and is never persisted. A measurement event triggers network refresh of latest telemetry, active alerts, and the currently selected history range; SQLDelight remains the source observed by UI flows. Reconnect uses bounded exponential backoff with jitter, stops in background, and is cancelled by logout. Returning to the foreground performs a full plant refresh. The app does not poll every few seconds and does not attempt permanent background monitoring.
 
+## Device claiming and calibration
+
+Step 7 lives in `:feature:devices`. `ClaimDeviceScreen` accepts manual one-time code entry and an owned plant selection; no QR dependency is currently present. It calls only `POST /api/v1/devices/claim` with `ClaimDeviceRequest`. The backend intentionally returns the same ownership-hiding `NOT_FOUND` response for an invalid, expired, consumed, or unavailable claim, so the UI presents those cases as one non-disclosing error instead of inventing distinctions the contract does not provide.
+
+A connectivity failure or timeout after submitting a claim is treated as an uncertain result. Retrying first calls `GET /api/v1/devices` and considers a device attached to the selected plant authoritative; only when no attachment is present is the one-time code submitted again. Claim codes remain only in view-model memory and are cleared after success. ESP32 Device Tokens are never requested, returned by these flows, displayed, logged, or persisted.
+
+`DeviceDetailsScreen` shows cached device identity, firmware, last-seen, online, and calibration values. Its five-step calibration wizard captures dry and wet readings from the actual `GET /api/v1/plants/{plantId}/latest` contract and writes them with `PATCH /api/v1/devices/{deviceId}/calibration`. The backend does not expose a multi-sample calibration endpoint, so the client shows each measurement timestamp and lets the user repeat unstable captures rather than fabricating sample aggregation. Equal values are rejected; increasing or decreasing wet ADC direction is accepted and explained. Offline devices, missing raw readings, timeout, cancellation without a write, and recalibration are explicit states.
+
 Application configuration and Koin bootstrap are created by Android/iOS entry points before composition. UI code no longer receives or constructs a backend base URL.
 
 ## Backend environments
@@ -102,6 +110,7 @@ The checked-in production endpoint is intentionally non-routable. Supply a real 
 ./gradlew :app:androidApp:assembleDebug
 ./gradlew :app:shared:compileKotlinIosSimulatorArm64
 ./gradlew :core:data:jvmTest :feature:auth:jvmTest :feature:plants:jvmTest
+./gradlew :feature:devices:jvmTest
 ./gradlew :app:shared:jvmTest :app:shared:iosSimulatorArm64Test
 ```
 

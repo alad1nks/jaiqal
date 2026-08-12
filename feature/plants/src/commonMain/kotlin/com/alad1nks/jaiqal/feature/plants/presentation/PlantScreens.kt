@@ -203,7 +203,8 @@ fun PlantDetailsScreen(
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onClaimDevice: () -> Unit,
-    onCalibrate: () -> Unit,
+    onDeviceDetails: (String) -> Unit,
+    onCalibrate: (String) -> Unit,
     viewModel: PlantDetailsViewModel = koinViewModel { parametersOf(plantId) },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -255,6 +256,7 @@ fun PlantDetailsScreen(
                 onSelectHistoryRange = viewModel::selectHistoryRange,
                 onRetryHistory = viewModel::retryHistory,
                 onClaimDevice = onClaimDevice,
+                onDeviceDetails = onDeviceDetails,
                 onCalibrate = onCalibrate,
                 modifier = Modifier.padding(padding),
             )
@@ -272,7 +274,8 @@ private fun PlantDetailsContent(
     onSelectHistoryRange: (com.alad1nks.jaiqal.feature.plants.domain.HistoryRange) -> Unit,
     onRetryHistory: () -> Unit,
     onClaimDevice: () -> Unit,
-    onCalibrate: () -> Unit,
+    onDeviceDetails: (String) -> Unit,
+    onCalibrate: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val overview = details.overview
@@ -346,7 +349,16 @@ private fun PlantDetailsContent(
             if (overview.device == null) {
                 JaiqalButton(stringResource(Res.string.claim_device), onClaimDevice, Modifier.fillMaxWidth())
             } else {
-                OutlinedButton(onClick = onCalibrate, modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = { onDeviceDetails(overview.device.id) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(Res.string.open_device_details))
+                }
+                OutlinedButton(
+                    onClick = { onCalibrate(overview.device.id) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     Text(stringResource(Res.string.calibrate_device))
                 }
             }

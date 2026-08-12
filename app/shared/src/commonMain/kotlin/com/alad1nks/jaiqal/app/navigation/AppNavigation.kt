@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.NavHost
@@ -19,6 +18,10 @@ import com.alad1nks.jaiqal.core.designsystem.theme.ThemeMode
 import com.alad1nks.jaiqal.feature.alerts.navigation.AlertsRoute
 import com.alad1nks.jaiqal.feature.alerts.presentation.AlertsPlaceholderScreen
 import com.alad1nks.jaiqal.feature.auth.navigation.authGraph
+import com.alad1nks.jaiqal.feature.devices.navigation.deviceScreens
+import com.alad1nks.jaiqal.feature.devices.navigation.navigateToCalibration
+import com.alad1nks.jaiqal.feature.devices.navigation.navigateToClaimDevice
+import com.alad1nks.jaiqal.feature.devices.navigation.navigateToDevice
 import com.alad1nks.jaiqal.feature.plants.navigation.PlantsRoute
 import com.alad1nks.jaiqal.feature.plants.navigation.navigateToCreatePlant
 import com.alad1nks.jaiqal.feature.plants.navigation.navigateToPlantDetails
@@ -30,10 +33,8 @@ import jaiqal.resources.generated.resources.Res
 import jaiqal.resources.generated.resources.loading
 import jaiqal.resources.generated.resources.backend_auth_error_message
 import jaiqal.resources.generated.resources.backend_auth_error_title
-import jaiqal.resources.generated.resources.feature_next_step
 import jaiqal.resources.generated.resources.retry
 import org.jetbrains.compose.resources.stringResource
-import kotlinx.coroutines.launch
 
 @Composable
 fun JaiqalNavHost(
@@ -44,7 +45,6 @@ fun JaiqalNavHost(
     sessionState: SessionState,
     onRetrySession: () -> Unit,
 ) {
-    val unavailable = stringResource(Res.string.feature_next_step)
     NavHost(
         navController = appState.navController,
         startDestination = SplashRoute,
@@ -65,9 +65,13 @@ fun JaiqalNavHost(
         }
         authGraph(appState.navController)
         mainGraph(appState, themeMode, onThemeSelected)
-        plantDetailScreens(appState.navController) {
-            appState.snackbarHostState.showSnackbar(unavailable)
-        }
+        plantDetailScreens(
+            navController = appState.navController,
+            onClaimDevice = appState.navController::navigateToClaimDevice,
+            onDeviceDetails = appState.navController::navigateToDevice,
+            onCalibrate = appState.navController::navigateToCalibration,
+        )
+        deviceScreens(appState.navController)
     }
 }
 
@@ -91,13 +95,11 @@ private fun NavGraphBuilder.mainGraph(
     navigation<MainGraph>(startDestination = PlantsRoute) {
         composable<PlantsRoute> {
             MainScaffold(MainSection.PLANTS, ::navigate) { padding ->
-                val scope = rememberCoroutineScope()
-                val unavailable = stringResource(Res.string.feature_next_step)
                 Box(Modifier.withMainContentPadding(padding)) {
                     PlantsScreen(
                         onOpenPlant = appState.navController::navigateToPlantDetails,
                         onCreatePlant = appState.navController::navigateToCreatePlant,
-                        onClaimDevice = { scope.launch { appState.snackbarHostState.showSnackbar(unavailable) } },
+                        onClaimDevice = { appState.navController.navigateToClaimDevice() },
                     )
                 }
             }

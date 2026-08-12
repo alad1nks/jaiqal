@@ -12,6 +12,7 @@
 | `:core:testing` | Reusable client test fixtures and fakes. |
 | `:resources` | Public Compose Multiplatform resources shared by UI modules. |
 | `:feature:auth` | Authentication screens, view models, routes, and feature DI. |
+| `:feature:devices` | Device claiming, device details, soil calibration wizard, routes, and feature DI. |
 | `:feature:plants` | Plant data/domain/presentation layers, routes, and feature DI. |
 | `:feature:alerts` | Alerts UI and routes. |
 | `:feature:settings` | Settings UI, view model, routes, and feature DI. |
@@ -168,6 +169,8 @@ The Android/iOS client uses an account-scoped SQLDelight offline cache. Reads fo
 The shared client includes cache-first plant list/details screens and server-first create/edit forms backed by the existing `/api/v1/plants`, device, telemetry, and alert contracts. Details show only measurements and alert states supplied by the backend; the client does not invent plant-health diagnoses.
 
 Plant details provide server-aggregated 24-hour, 7-day, and 30-day charts and authenticated foreground-only SSE updates. Realtime events refresh the shared SQLDelight cache; reconnect is bounded with exponential backoff and stops on background or logout.
+
+Device claiming uses only the authenticated user endpoint and a manually entered one-time claim code. The client never receives, displays, stores, or uses an ESP32 Device Token. If a claim response is lost, retry first reconciles the authoritative device list before resubmitting the code. Device details expose firmware, last-seen, online, and calibration state. The five-step soil calibration wizard captures the backend's latest raw measurement for dry and wet conditions, accepts either ADC direction, rejects equal values, and sends values only after explicit confirmation.
 
 - Android: `./gradlew :app:androidApp:assembleDebug`
 - Desktop: `./gradlew :app:desktopApp:run`
