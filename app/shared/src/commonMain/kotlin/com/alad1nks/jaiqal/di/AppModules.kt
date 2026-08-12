@@ -6,6 +6,7 @@ import com.alad1nks.jaiqal.core.database.DatabaseDriverFactory
 import com.alad1nks.jaiqal.core.di.coreDataModule
 import com.alad1nks.jaiqal.core.network.BackendConfig
 import com.alad1nks.jaiqal.feature.auth.di.authModule
+import com.alad1nks.jaiqal.feature.alerts.di.alertsModule
 import com.alad1nks.jaiqal.feature.devices.di.devicesModule
 import com.alad1nks.jaiqal.feature.plants.di.plantsModule
 import com.alad1nks.jaiqal.feature.settings.di.settingsModule
@@ -33,6 +34,7 @@ internal fun appModules(
     if (httpClient != null) {
         add(plantsModule)
         add(devicesModule)
+        add(alertsModule)
     }
 }
 

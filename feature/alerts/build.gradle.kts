@@ -16,6 +16,7 @@ kotlin {
         minSdk = libs.versions.android.minSdk.get().toInt()
         compilerOptions { jvmTarget = JvmTarget.JVM_11 }
         androidResources { enable = true }
+        withHostTest { isIncludeAndroidResources = true }
     }
     iosArm64()
     iosSimulatorArm64()
@@ -25,11 +26,26 @@ kotlin {
     wasmJs { browser() }
 
     sourceSets.commonMain.dependencies {
+        implementation(project(":core:api-contract"))
+        implementation(project(":core:data"))
         implementation(project(":core:designsystem"))
         implementation(project(":resources"))
+        implementation(libs.compose.foundation)
+        implementation(libs.compose.material3)
         implementation(libs.compose.runtime)
         implementation(libs.compose.ui)
         implementation(libs.compose.components.resources)
+        implementation(libs.androidx.lifecycle.viewmodelCompose)
+        implementation(libs.androidx.lifecycle.runtimeCompose)
         implementation(libs.navigation.compose)
+        implementation(libs.kotlinx.coroutines.core)
+        implementation(libs.ktor.client.core)
+        implementation(libs.koin.core)
+        implementation(libs.koin.compose)
+        implementation(libs.koin.compose.viewmodel)
+    }
+    sourceSets.commonTest.dependencies {
+        implementation(libs.kotlin.test)
+        implementation(libs.kotlinx.coroutines.test)
     }
 }
