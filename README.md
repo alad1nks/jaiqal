@@ -7,8 +7,18 @@
 | Module | Purpose |
 | --- | --- |
 | `:core:api-contract` | KMP-safe serializable requests, responses, and public API enums. |
+| `:core:data` | Shared Firebase session boundary, Ktor client, SQLDelight cache, connectivity/lifecycle abstractions, and their Koin bindings. |
+| `:core:designsystem` | Shared Material 3 theme and reusable UI components. |
+| `:core:testing` | Reusable client test fixtures and fakes. |
+| `:resources` | Public Compose Multiplatform resources shared by UI modules. |
+| `:feature:auth` | Authentication screens, view models, routes, and feature DI. |
+| `:feature:plants` | Plant data/domain/presentation layers, routes, and feature DI. |
+| `:feature:alerts` | Alerts UI and routes. |
+| `:feature:settings` | Settings UI, view model, routes, and feature DI. |
 | `:server` | JVM Ktor API, authentication, telemetry, alerts, notification worker, Exposed/JDBC persistence, and Flyway migrations. |
-| `:app:shared` | Shared Compose UI and client code for Android, iOS, desktop, and web launchers. |
+| `:app:shared` | Thin shared application shell: root navigation, product composition, platform bootstrap, and launcher-facing APIs. |
+
+The client follows the dependency direction `launcher -> app:shared -> feature -> core`. A feature owns its routes, UI, view models, and feature-specific data/domain code; `:app:shared` only assembles features into the product. Modules are split by substantial product feature or shared responsibility, not by every individual architectural layer.
 
 The server is organized by `auth`, `users`, `plants`, `devices`, `telemetry`, `alerts`, and `notifications` features. PostgreSQL access is isolated in `infrastructure/database`. Measurements are committed before an in-process event is published. Alert transitions and notification outbox records are committed atomically; a background worker claims and retries delivery. The bundled sender logs notifications, so local development needs no FCM or APNs credentials.
 

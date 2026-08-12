@@ -1,83 +1,35 @@
 package com.alad1nks.jaiqal.di
 
 import com.alad1nks.jaiqal.app.AppViewModel
-import io.ktor.client.HttpClient
 import com.alad1nks.jaiqal.core.auth.AuthProvider
-import com.alad1nks.jaiqal.core.auth.ApiCurrentUserGateway
-import com.alad1nks.jaiqal.core.auth.CurrentUserGateway
-import com.alad1nks.jaiqal.core.auth.UnavailableCurrentUserGateway
-import com.alad1nks.jaiqal.core.auth.UserSessionStore
-import com.alad1nks.jaiqal.core.cache.NoOpOfflineCache
-import com.alad1nks.jaiqal.core.cache.OfflineCache
-import com.alad1nks.jaiqal.core.cache.SqlDelightOfflineCache
-import com.alad1nks.jaiqal.core.cache.SyncCoordinator
 import com.alad1nks.jaiqal.core.database.DatabaseDriverFactory
-import com.alad1nks.jaiqal.core.database.JaiqalDatabase
-import com.alad1nks.jaiqal.core.network.ApiClient
-import com.alad1nks.jaiqal.core.network.AuthenticatedRequestExecutor
+import com.alad1nks.jaiqal.core.di.coreDataModule
 import com.alad1nks.jaiqal.core.network.BackendConfig
-import com.alad1nks.jaiqal.core.network.AppEnvironment
-import com.alad1nks.jaiqal.core.network.FirebaseAuthenticatedRequestExecutor
-import com.alad1nks.jaiqal.core.network.KtorApiClient
-import com.alad1nks.jaiqal.core.network.SessionErrorStore
-import com.alad1nks.jaiqal.feature.auth.presentation.AuthViewModel
-import com.alad1nks.jaiqal.feature.auth.presentation.VerifyEmailViewModel
-import com.alad1nks.jaiqal.feature.settings.presentation.SettingsViewModel
-import com.alad1nks.jaiqal.feature.plants.data.ApiPlantRemoteDataSource
-import com.alad1nks.jaiqal.feature.plants.data.ApiPlantRealtimeDataSource
-import com.alad1nks.jaiqal.feature.plants.data.PlantRemoteDataSource
-import com.alad1nks.jaiqal.feature.plants.data.PlantRealtimeDataSource
-import com.alad1nks.jaiqal.feature.plants.domain.OfflineFirstPlantRepository
-import com.alad1nks.jaiqal.feature.plants.domain.PlantRepository
-import com.alad1nks.jaiqal.feature.plants.presentation.CreatePlantViewModel
-import com.alad1nks.jaiqal.feature.plants.presentation.EditPlantViewModel
-import com.alad1nks.jaiqal.feature.plants.presentation.PlantDetailsViewModel
-import com.alad1nks.jaiqal.feature.plants.presentation.PlantsViewModel
+import com.alad1nks.jaiqal.feature.auth.di.authModule
+import com.alad1nks.jaiqal.feature.plants.di.plantsModule
+import com.alad1nks.jaiqal.feature.settings.di.settingsModule
+import io.ktor.client.HttpClient
 import org.koin.core.KoinApplication
+import org.koin.core.module.Module
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.koinApplication
 import org.koin.dsl.module
 
-fun appModule(
+private val appModule = module {
+    viewModel { AppViewModel(get(), get(), get(), get(), get()) }
+}
+
+internal fun appModules(
     backendConfig: BackendConfig,
     authProvider: AuthProvider,
     httpClient: HttpClient?,
-    databaseDriverFactory: DatabaseDriverFactory? = null,
-) = module {
-    single<BackendConfig> { backendConfig }
-    single<AppEnvironment> { backendConfig.environment }
-    single<AuthProvider> { authProvider }
-    single { SessionErrorStore() }
-    single { SyncCoordinator() }
-    if (databaseDriverFactory != null) {
-        single { databaseDriverFactory.create() }
-        single { JaiqalDatabase(get()) }
-        single<OfflineCache> { SqlDelightOfflineCache(get()) }
-    } else {
-        single<OfflineCache> { NoOpOfflineCache }
-    }
-    if (httpClient != null) {
-        single { httpClient }
-        single<AuthenticatedRequestExecutor> { FirebaseAuthenticatedRequestExecutor(get(), get()) }
-        single<ApiClient> { KtorApiClient(get(), get(), get()) }
-        single<CurrentUserGateway> { ApiCurrentUserGateway(get()) }
-        single<PlantRemoteDataSource> { ApiPlantRemoteDataSource(get()) }
-        single<PlantRealtimeDataSource> { ApiPlantRealtimeDataSource(get(), get(), get(), get()) }
-    } else {
-        single<CurrentUserGateway> { UnavailableCurrentUserGateway() }
-    }
-    single { UserSessionStore() }
-    if (httpClient != null) {
-        single<PlantRepository> { OfflineFirstPlantRepository(get(), get(), get(), get(), get()) }
-        viewModel { PlantsViewModel(get()) }
-        viewModel { parameters -> PlantDetailsViewModel(parameters.get(), get()) }
-        viewModel { CreatePlantViewModel(get()) }
-        viewModel { parameters -> EditPlantViewModel(parameters.get(), get()) }
-    }
-    viewModel { AppViewModel(get(), get(), get(), get(), get()) }
-    viewModel { AuthViewModel(get()) }
-    viewModel { VerifyEmailViewModel(get()) }
-    viewModel { SettingsViewModel(get(), get(), get()) }
+    databaseDriverFactory: DatabaseDriverFactory?,
+): List<Module> = buildList {
+    add(coreDataModule(backendConfig, authProvider, httpClient, databaseDriverFactory))
+    add(appModule)
+    add(authModule)
+    add(settingsModule)
+    if (httpClient != null) add(plantsModule)
 }
 
 fun createKoinApplication(
@@ -86,5 +38,5 @@ fun createKoinApplication(
     httpClient: HttpClient? = null,
     databaseDriverFactory: DatabaseDriverFactory? = null,
 ): KoinApplication = koinApplication {
-    modules(appModule(backendConfig, authProvider, httpClient, databaseDriverFactory))
+    modules(appModules(backendConfig, authProvider, httpClient, databaseDriverFactory))
 }

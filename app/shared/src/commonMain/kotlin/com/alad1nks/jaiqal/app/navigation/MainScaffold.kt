@@ -10,10 +10,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import jaiqal.app.shared.generated.resources.Res
-import jaiqal.app.shared.generated.resources.alerts
-import jaiqal.app.shared.generated.resources.plants
-import jaiqal.app.shared.generated.resources.settings
+import jaiqal.resources.generated.resources.Res
+import jaiqal.resources.generated.resources.alerts
+import jaiqal.resources.generated.resources.plants
+import jaiqal.resources.generated.resources.settings
 import org.jetbrains.compose.resources.stringResource
 
 enum class MainSection { PLANTS, ALERTS, SETTINGS }

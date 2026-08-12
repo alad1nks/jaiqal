@@ -6,12 +6,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.alad1nks.jaiqal.app.navigation.AuthGraph
 import com.alad1nks.jaiqal.app.navigation.JaiqalNavHost
 import com.alad1nks.jaiqal.app.navigation.MainGraph
 import com.alad1nks.jaiqal.app.navigation.SplashRoute
-import com.alad1nks.jaiqal.app.navigation.VerifyEmailRoute
 import com.alad1nks.jaiqal.core.designsystem.theme.JaiqalTheme
+import com.alad1nks.jaiqal.feature.auth.navigation.AuthGraph
+import com.alad1nks.jaiqal.feature.auth.navigation.VerifyEmailRoute
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable

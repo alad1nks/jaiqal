@@ -21,7 +21,7 @@ fun createAppConfiguration(
     databaseDriverFactory: DatabaseDriverFactory?,
 ): AppBootstrap = AppBootstrap(
     koinConfiguration {
-        modules(appModule(backendConfig, authProvider, httpClient, databaseDriverFactory))
+        modules(appModules(backendConfig, authProvider, httpClient, databaseDriverFactory))
     },
 )
 
