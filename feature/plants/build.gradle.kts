@@ -48,9 +48,11 @@ kotlin {
             implementation(libs.koin.compose.viewmodel)
         }
         commonTest.dependencies {
+            implementation(libs.compose.uiTest)
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
         }
+        jvmTest.dependencies { runtimeOnly(compose.desktop.currentOs) }
         jvmTest.dependencies {
             implementation(libs.sqldelight.sqliteDriver)
         }

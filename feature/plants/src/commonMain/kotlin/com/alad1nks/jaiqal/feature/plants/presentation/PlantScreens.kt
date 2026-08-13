@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -61,6 +62,16 @@ import jaiqal.resources.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
+
+object PlantUiTags {
+    const val EMPTY = "plants.empty"
+    const val LIST = "plants.list"
+    const val CARD = "plants.card"
+    const val DETAILS = "plants.details"
+    const val MISSING_READINGS = "plants.missing-readings"
+    const val OFFLINE_CACHE = "plants.offline-cache"
+    const val FORM = "plants.form"
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,13 +102,13 @@ fun PlantsScreen(
             state.plants.isEmpty() -> PlantsEmptyState(onCreatePlant, onClaimDevice)
             else -> Column(Modifier.fillMaxSize()) {
                 if (state.isCached) {
-                    OfflineBanner(stringResource(Res.string.cached_data))
+                    OfflineBanner(stringResource(Res.string.cached_data), Modifier.testTag(PlantUiTags.OFFLINE_CACHE))
                     TextButton(onClick = viewModel::refresh, modifier = Modifier.align(Alignment.CenterHorizontally)) {
                         Text(stringResource(Res.string.retry))
                     }
                 }
                 LazyColumn(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).testTag(PlantUiTags.LIST),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(JaiqalTheme.spacing.medium),
                     verticalArrangement = Arrangement.spacedBy(JaiqalTheme.spacing.medium),
                 ) {
@@ -118,9 +129,9 @@ fun PlantsScreen(
 }
 
 @Composable
-private fun PlantsEmptyState(onCreatePlant: () -> Unit, onClaimDevice: () -> Unit) {
+internal fun PlantsEmptyState(onCreatePlant: () -> Unit, onClaimDevice: () -> Unit) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(JaiqalTheme.spacing.large),
+        modifier = Modifier.fillMaxSize().testTag(PlantUiTags.EMPTY).padding(JaiqalTheme.spacing.large),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -137,8 +148,8 @@ private fun PlantsEmptyState(onCreatePlant: () -> Unit, onClaimDevice: () -> Uni
 }
 
 @Composable
-private fun PlantCard(overview: PlantOverview, onClick: () -> Unit) {
-    JaiqalCard(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+internal fun PlantCard(overview: PlantOverview, onClick: () -> Unit) {
+    JaiqalCard(Modifier.fillMaxWidth().testTag(PlantUiTags.CARD).clickable(onClick = onClick)) {
         Row(horizontalArrangement = Arrangement.spacedBy(JaiqalTheme.spacing.medium)) {
             PlantImagePlaceholder(Modifier.size(76.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -269,7 +280,7 @@ fun PlantDetailsScreen(
 }
 
 @Composable
-private fun PlantDetailsContent(
+internal fun PlantDetailsContent(
     details: com.alad1nks.jaiqal.feature.plants.domain.PlantDetails,
     cached: Boolean,
     selectedRange: com.alad1nks.jaiqal.feature.plants.domain.HistoryRange,
@@ -284,8 +295,8 @@ private fun PlantDetailsContent(
 ) {
     val overview = details.overview
     val latest = overview.latest
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        if (cached) OfflineBanner(stringResource(Res.string.cached_data))
+    Column(modifier.fillMaxSize().testTag(PlantUiTags.DETAILS).verticalScroll(rememberScrollState())) {
+        if (cached) OfflineBanner(stringResource(Res.string.cached_data), Modifier.testTag(PlantUiTags.OFFLINE_CACHE))
         Column(
             Modifier.padding(JaiqalTheme.spacing.medium),
             verticalArrangement = Arrangement.spacedBy(JaiqalTheme.spacing.medium),
@@ -304,41 +315,43 @@ private fun PlantDetailsContent(
                 latest.online -> stringResource(Res.string.last_measurement, measuredAt)
                 else -> stringResource(Res.string.stale_measurement, measuredAt)
             }
-            MetricWithAlert(
-                stringResource(Res.string.soil_moisture),
-                latest?.soilMoisturePercent?.let {
-                    stringResource(Res.string.percent_value, localizedDecimal(it))
-                }
-                    ?: latest?.soilMoistureRaw?.let { stringResource(Res.string.raw_value, it) }
-                    ?: stringResource(Res.string.not_available_short),
-                support,
-                warning = overview.activeAlerts.any { it.type == AlertType.LOW_SOIL_MOISTURE },
-            )
-            MetricWithAlert(
-                stringResource(Res.string.air_temperature),
-                latest?.airTemperatureCelsius?.let {
-                    stringResource(Res.string.temperature_value, localizedDecimal(it))
-                }
-                    ?: stringResource(Res.string.not_available_short),
-                support,
-                warning = overview.activeAlerts.any {
-                    it.type == AlertType.HIGH_TEMPERATURE || it.type == AlertType.LOW_TEMPERATURE
-                },
-            )
-            MetricCard(
-                stringResource(Res.string.air_humidity),
-                latest?.airHumidityPercent?.let {
-                    stringResource(Res.string.percent_value, localizedDecimal(it))
-                }
-                    ?: stringResource(Res.string.not_available_short),
-                support,
-            )
-            MetricCard(
-                stringResource(Res.string.light_level),
-                latest?.lightRaw?.let { stringResource(Res.string.light_raw_value, it) }
-                    ?: stringResource(Res.string.not_available_short),
-                support,
-            )
+            Column(Modifier.then(if (latest == null) Modifier.testTag(PlantUiTags.MISSING_READINGS) else Modifier)) {
+                MetricWithAlert(
+                    stringResource(Res.string.soil_moisture),
+                    latest?.soilMoisturePercent?.let {
+                        stringResource(Res.string.percent_value, localizedDecimal(it))
+                    }
+                        ?: latest?.soilMoistureRaw?.let { stringResource(Res.string.raw_value, it) }
+                        ?: stringResource(Res.string.not_available_short),
+                    support,
+                    warning = overview.activeAlerts.any { it.type == AlertType.LOW_SOIL_MOISTURE },
+                )
+                MetricWithAlert(
+                    stringResource(Res.string.air_temperature),
+                    latest?.airTemperatureCelsius?.let {
+                        stringResource(Res.string.temperature_value, localizedDecimal(it))
+                    }
+                        ?: stringResource(Res.string.not_available_short),
+                    support,
+                    warning = overview.activeAlerts.any {
+                        it.type == AlertType.HIGH_TEMPERATURE || it.type == AlertType.LOW_TEMPERATURE
+                    },
+                )
+                MetricCard(
+                    stringResource(Res.string.air_humidity),
+                    latest?.airHumidityPercent?.let {
+                        stringResource(Res.string.percent_value, localizedDecimal(it))
+                    }
+                        ?: stringResource(Res.string.not_available_short),
+                    support,
+                )
+                MetricCard(
+                    stringResource(Res.string.light_level),
+                    latest?.lightRaw?.let { stringResource(Res.string.light_raw_value, it) }
+                        ?: stringResource(Res.string.not_available_short),
+                    support,
+                )
+            }
             latest?.let {
                 StatusBadge(
                     text = stringResource(
@@ -450,6 +463,7 @@ private fun PlantFormScreen(
     ) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).padding(JaiqalTheme.spacing.medium)
+                .testTag(PlantUiTags.FORM)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(JaiqalTheme.spacing.medium),
         ) {

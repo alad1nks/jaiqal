@@ -45,8 +45,12 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(project(":core:testing"))
+            implementation(libs.compose.uiTest)
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
+        }
+        jvmTest.dependencies {
+            runtimeOnly(compose.desktop.currentOs)
         }
     }
 }

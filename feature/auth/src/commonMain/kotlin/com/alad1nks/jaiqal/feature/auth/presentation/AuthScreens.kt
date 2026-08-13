@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.alad1nks.jaiqal.core.auth.AuthErrorCode
@@ -29,6 +30,16 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
+object AuthUiTags {
+    const val LOGIN = "auth.login"
+    const val REGISTER = "auth.register"
+    const val VERIFY_EMAIL = "auth.verify-email"
+    const val EMAIL = "auth.email"
+    const val PASSWORD = "auth.password"
+    const val SUBMIT = "auth.submit"
+    const val ERROR = "auth.error"
+}
+
 @Composable
 fun LoginScreen(
     onRegister: () -> Unit,
@@ -36,12 +47,24 @@ fun LoginScreen(
     viewModel: AuthViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    LoginContent(state, viewModel::setEmail, viewModel::setPassword, viewModel::signIn, onRegister, onForgotPassword)
+}
+
+@Composable
+internal fun LoginContent(
+    state: AuthFormUiState,
+    onEmailChange: (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+    onRegister: () -> Unit,
+    onForgotPassword: () -> Unit,
+) {
     AuthLayout(Res.string.login_title, Res.string.login_message) {
-        AuthFields(state, viewModel, showPassword = true)
+        AuthFields(state, onEmailChange, onPasswordChange, showPassword = true)
         JaiqalButton(
             text = stringResource(Res.string.sign_in),
-            onClick = viewModel::signIn,
-            modifier = Modifier.fillMaxWidth(),
+            onClick = onSubmit,
+            modifier = Modifier.fillMaxWidth().testTag(AuthUiTags.SUBMIT),
             enabled = !state.isLoading,
         )
         AuthFeedback(state)
@@ -60,13 +83,24 @@ fun RegisterScreen(
     viewModel: AuthViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    AuthLayout(Res.string.register, Res.string.register_message) {
-        AuthFields(state, viewModel, showPassword = true)
+    RegisterContent(state, viewModel::setEmail, viewModel::setPassword, viewModel::signUp, onBack)
+}
+
+@Composable
+internal fun RegisterContent(
+    state: AuthFormUiState,
+    onEmailChange: (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+    onBack: () -> Unit,
+) {
+    AuthLayout(Res.string.register, Res.string.register_message, AuthUiTags.REGISTER) {
+        AuthFields(state, onEmailChange, onPasswordChange, showPassword = true)
         Text(stringResource(Res.string.password_requirements), style = MaterialTheme.typography.bodySmall)
         JaiqalButton(
             text = stringResource(Res.string.register),
-            onClick = viewModel::signUp,
-            modifier = Modifier.fillMaxWidth(),
+            onClick = onSubmit,
+            modifier = Modifier.fillMaxWidth().testTag(AuthUiTags.SUBMIT),
             enabled = !state.isLoading,
         )
         AuthFeedback(state)
@@ -83,7 +117,7 @@ fun ForgotPasswordScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     AuthLayout(Res.string.forgot_password, Res.string.forgot_password_message) {
-        AuthFields(state, viewModel, showPassword = false)
+        AuthFields(state, viewModel::setEmail, viewModel::setPassword, showPassword = false)
         JaiqalButton(
             text = stringResource(Res.string.send_reset_email),
             onClick = viewModel::sendPasswordReset,
@@ -100,17 +134,32 @@ fun ForgotPasswordScreen(
 @Composable
 fun VerifyEmailScreen(viewModel: VerifyEmailViewModel = koinViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    AuthLayout(Res.string.verify_email_title, Res.string.verify_email_message) {
+    VerifyEmailContent(
+        state = state,
+        onReload = viewModel::reloadUser,
+        onResend = viewModel::resendVerification,
+        onSignOut = viewModel::signOut,
+    )
+}
+
+@Composable
+internal fun VerifyEmailContent(
+    state: VerifyEmailUiState,
+    onReload: () -> Unit,
+    onResend: () -> Unit,
+    onSignOut: () -> Unit,
+) {
+    AuthLayout(Res.string.verify_email_title, Res.string.verify_email_message, AuthUiTags.VERIFY_EMAIL) {
         state.email?.let {
             Text(it, style = MaterialTheme.typography.titleMedium)
         }
         JaiqalButton(
             text = stringResource(Res.string.check_verification),
-            onClick = viewModel::reloadUser,
+            onClick = onReload,
             modifier = Modifier.fillMaxWidth(),
             enabled = !state.isLoading,
         )
-        TextButton(onClick = viewModel::resendVerification, enabled = !state.isLoading) {
+        TextButton(onClick = onResend, enabled = !state.isLoading) {
             Text(stringResource(Res.string.resend_verification))
         }
         if (state.isLoading) CircularProgressIndicator()
@@ -122,26 +171,33 @@ fun VerifyEmailScreen(viewModel: VerifyEmailViewModel = koinViewModel()) {
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
-        TextButton(onClick = viewModel::signOut, enabled = !state.isLoading) {
+        TextButton(onClick = onSignOut, enabled = !state.isLoading) {
             Text(stringResource(Res.string.sign_out))
         }
     }
 }
 
 @Composable
-private fun AuthFields(state: AuthFormUiState, viewModel: AuthViewModel, showPassword: Boolean) {
+private fun AuthFields(
+    state: AuthFormUiState,
+    onEmailChange: (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
+    showPassword: Boolean,
+) {
     JaiqalTextField(
         value = state.email,
-        onValueChange = viewModel::setEmail,
+        onValueChange = onEmailChange,
         label = stringResource(Res.string.email),
+        modifier = Modifier.testTag(AuthUiTags.EMAIL),
         enabled = !state.isLoading,
         isError = state.error == AuthErrorCode.INVALID_EMAIL,
     )
     if (showPassword) {
         JaiqalTextField(
             value = state.password,
-            onValueChange = viewModel::setPassword,
+            onValueChange = onPasswordChange,
             label = stringResource(Res.string.password),
+            modifier = Modifier.testTag(AuthUiTags.PASSWORD),
             enabled = !state.isLoading,
             isError = state.error == AuthErrorCode.WEAK_PASSWORD,
             visualTransformation = PasswordVisualTransformation(),
@@ -178,16 +234,23 @@ private fun AuthErrorText(error: AuthErrorCode) {
     }
     Text(
         text = stringResource(resource),
+        modifier = Modifier.testTag(AuthUiTags.ERROR),
         color = MaterialTheme.colorScheme.error,
         style = MaterialTheme.typography.bodyMedium,
     )
 }
 
 @Composable
-private fun AuthLayout(title: StringResource, message: StringResource, content: @Composable () -> Unit) {
+private fun AuthLayout(
+    title: StringResource,
+    message: StringResource,
+    testTag: String = AuthUiTags.LOGIN,
+    content: @Composable () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .testTag(testTag)
             .verticalScroll(rememberScrollState())
             .padding(JaiqalTheme.spacing.large),
         horizontalAlignment = Alignment.CenterHorizontally,

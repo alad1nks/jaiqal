@@ -50,6 +50,26 @@ class AppViewModelTest {
     }
 
     @Test
+    fun authStateTransitionsFromLoadingThroughLoggedOutToBackendSession() = runTest(dispatcher) {
+        val auth = FakeAuthProvider(AuthState.Loading)
+        val store = UserSessionStore()
+        val viewModel = AppViewModel(auth, CurrentUserGateway {
+            CurrentUserResponse("user-a", "plant@example.com", emailVerified = true)
+        }, store, SessionErrorStore(), NoOpOfflineCache)
+
+        runCurrent()
+        assertEquals(SessionState.LOADING, viewModel.state.value.session)
+        auth.emit(AuthState.Unauthenticated)
+        advanceUntilIdle()
+        assertEquals(SessionState.UNAUTHENTICATED, viewModel.state.value.session)
+        auth.emit(AuthState.Authenticated("plant@example.com", emailVerified = true))
+        advanceUntilIdle()
+
+        assertEquals(SessionState.AUTHENTICATED, viewModel.state.value.session)
+        assertEquals("user-a", store.session.value?.userId)
+    }
+
+    @Test
     fun unverifiedEmailDoesNotCallBackend() = runTest(dispatcher) {
         val auth = FakeAuthProvider(AuthState.Authenticated("plant@example.com", emailVerified = false))
         val store = UserSessionStore()
