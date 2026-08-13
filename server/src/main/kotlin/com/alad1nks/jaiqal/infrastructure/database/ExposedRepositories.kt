@@ -49,7 +49,11 @@ class ExposedMeasurementRepository(private val database: Database) : Measurement
             it[MeasurementsTable.airTemperatureCelsius] = measurement.airTemperatureCelsius; it[MeasurementsTable.airHumidityPercent] = measurement.airHumidityPercent
             it[MeasurementsTable.lightRaw] = measurement.lightRaw; it[MeasurementsTable.extra] = Json.parseToJsonElement(measurement.extra)
         }
-        statement.resultedValues?.singleOrNull()?.let { MeasurementRecord(it[MeasurementsTable.id], measurement) }
+        if (statement.insertedCount == 0) {
+            null
+        } else {
+            statement.resultedValues?.singleOrNull()?.let { MeasurementRecord(it[MeasurementsTable.id], measurement) }
+        }
     }
 
     override fun findByDeviceAndSequence(deviceId: UUID, sequence: Long) = transaction(database) {

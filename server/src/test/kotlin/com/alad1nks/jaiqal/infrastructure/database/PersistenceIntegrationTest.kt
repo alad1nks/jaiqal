@@ -6,6 +6,7 @@ import com.alad1nks.jaiqal.devices.DeviceRecord
 import com.alad1nks.jaiqal.plants.PlantRecord
 import com.alad1nks.jaiqal.telemetry.NewMeasurement
 import com.alad1nks.jaiqal.telemetry.HistoryRequest
+import com.alad1nks.jaiqal.telemetry.PreparedMeasurement
 import com.alad1nks.jaiqal.api.contract.HistoryInterval
 import com.alad1nks.jaiqal.users.UserRecord
 import com.alad1nks.jaiqal.users.FirebaseUserIdentityService
@@ -131,6 +132,20 @@ class PersistenceIntegrationTest {
         assertNotNull(repository.insert(measurement))
         assertNull(repository.insert(measurement))
         assertNotNull(repository.findByDeviceAndSequence(ids.deviceId, 7))
+    }
+
+    @Test
+    fun `telemetry store reports a repeated sequence as duplicate`() {
+        val ids = fixture()
+        val device = ExposedDeviceRepository(infrastructure.database).findById(ids.deviceId)!!
+        val store = ExposedTelemetryStore(infrastructure.database)
+        val measurement = PreparedMeasurement(
+            NewMeasurement(ids.deviceId, 8, now, now, soilMoistureRaw = 1500),
+            firmwareVersion = "test",
+        )
+
+        assertEquals(false, store.ingest(device, listOf(measurement)).single().duplicate)
+        assertEquals(true, store.ingest(device, listOf(measurement)).single().duplicate)
     }
 
     @Test
