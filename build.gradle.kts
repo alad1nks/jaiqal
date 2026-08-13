@@ -54,7 +54,7 @@ abstract class VerifyReleasePlatformConfiguration : DefaultTask() {
 
 tasks.register<VerifyReleasePlatformConfiguration>("verifyReleasePlatformConfiguration") {
     group = "verification"
-    description = "Verifies platform deep-link and release Crashlytics configuration required by frontend Step 11."
+    description = "Verifies frontend platform deep-link and release Crashlytics configuration."
     androidManifestFile.set(layout.projectDirectory.file("app/androidApp/src/main/AndroidManifest.xml"))
     androidBuildFile.set(layout.projectDirectory.file("app/androidApp/build.gradle.kts"))
     iosReleaseInfoFile.set(layout.projectDirectory.file("app/iosApp/iosApp/Info.plist"))
