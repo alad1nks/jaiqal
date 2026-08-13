@@ -15,6 +15,10 @@ import kotlinx.serialization.Serializable
 @Serializable data object CreatePlantRoute
 @Serializable data class EditPlantRoute(val plantId: String)
 
+const val PLANT_DEEP_LINK_BASE = "jaiqal://plants"
+
+fun plantDeepLink(plantId: String): String = "$PLANT_DEEP_LINK_BASE/$plantId"
+
 fun NavController.navigateToPlantDetails(plantId: String) = navigate(PlantDetailsRoute(plantId))
 fun NavController.navigateToCreatePlant() = navigate(CreatePlantRoute)
 
@@ -25,7 +29,7 @@ fun NavGraphBuilder.plantDetailScreens(
     onCalibrate: (String) -> Unit,
 ) {
     composable<PlantDetailsRoute>(
-        deepLinks = listOf(navDeepLink<PlantDetailsRoute>(basePath = "jaiqal://plants")),
+        deepLinks = listOf(navDeepLink<PlantDetailsRoute>(basePath = PLANT_DEEP_LINK_BASE)),
     ) { entry ->
         val route = entry.toRoute<PlantDetailsRoute>()
         PlantDetailsScreen(

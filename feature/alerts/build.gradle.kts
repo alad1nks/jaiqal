@@ -45,7 +45,9 @@ kotlin {
         implementation(libs.koin.compose.viewmodel)
     }
     sourceSets.commonTest.dependencies {
+        implementation(libs.compose.uiTest)
         implementation(libs.kotlin.test)
         implementation(libs.kotlinx.coroutines.test)
     }
+    sourceSets.jvmTest.dependencies { runtimeOnly(compose.desktop.currentOs) }
 }

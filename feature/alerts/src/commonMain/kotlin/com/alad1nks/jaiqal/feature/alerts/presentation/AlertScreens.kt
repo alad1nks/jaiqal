@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.alad1nks.jaiqal.api.contract.AlertStatus
 import com.alad1nks.jaiqal.api.contract.AlertType
@@ -44,6 +45,12 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
+object AlertUiTags {
+    const val LIST = "alerts.list"
+    const val CARD = "alerts.card"
+    const val ERROR = "alerts.error"
+}
+
 @Composable
 fun AlertsScreen(
     onOpenRules: () -> Unit,
@@ -60,10 +67,10 @@ fun AlertsScreen(
             message = alertErrorMessage(state.error!!),
             retryLabel = stringResource(Res.string.retry),
             onRetry = viewModel::refresh,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().testTag(AlertUiTags.ERROR),
         )
         else -> LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().testTag(AlertUiTags.LIST),
             contentPadding = PaddingValues(JaiqalTheme.spacing.medium),
             verticalArrangement = Arrangement.spacedBy(JaiqalTheme.spacing.medium),
         ) {
@@ -111,9 +118,9 @@ fun AlertsScreen(
 }
 
 @Composable
-private fun AlertCard(alert: AlertOverview, acknowledging: Boolean, onAcknowledge: () -> Unit) {
+internal fun AlertCard(alert: AlertOverview, acknowledging: Boolean, onAcknowledge: () -> Unit) {
     val event = alert.event
-    JaiqalCard(Modifier.fillMaxWidth()) {
+    JaiqalCard(Modifier.fillMaxWidth().testTag(AlertUiTags.CARD)) {
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,

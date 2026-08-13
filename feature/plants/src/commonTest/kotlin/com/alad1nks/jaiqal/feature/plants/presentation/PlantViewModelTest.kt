@@ -100,6 +100,23 @@ class PlantViewModelTest {
     }
 
     @Test
+    fun editLoadsExistingPlantAndUpdatesTheSameIdentifier() = runTest(dispatcher) {
+        val repository = FakePlantRepository().apply {
+            plants.value = listOf(PlantOverview(plant("plant-a", "Old name"), null, null, emptyList()))
+        }
+        val viewModel = EditPlantViewModel("plant-a", repository)
+        advanceUntilIdle()
+
+        assertEquals("Old name", viewModel.state.value.name)
+        viewModel.setName("  New name  ")
+        viewModel.save()
+        advanceUntilIdle()
+
+        assertEquals("plant-a", viewModel.state.value.savedPlantId)
+        assertEquals("plant-a" to Triple("New name", null, null), repository.lastUpdate)
+    }
+
+    @Test
     fun detailsSelectsAggregatedRangeAndRealtimeStopsInBackground() = runTest(dispatcher) {
         val repository = FakePlantRepository().apply {
             plants.value = listOf(PlantOverview(plant("plant-a", "Aloe"), null, null, emptyList()))
@@ -132,6 +149,7 @@ class PlantViewModelTest {
         var createFailure: Throwable? = null
         var createCalls = 0
         var lastCreate: Triple<String, String?, String?>? = null
+        var lastUpdate: Pair<String, Triple<String, String?, String?>>? = null
         val realtime = MutableSharedFlow<PlantTelemetryUpdate>()
         var lastHistoryRefresh: HistoryCacheKey? = null
         var realtimeRefreshes = 0
@@ -169,7 +187,10 @@ class PlantViewModelTest {
             name: String,
             species: String?,
             imageUrl: String?,
-        ) = plant(plantId, name)
+        ): PlantResponse {
+            lastUpdate = plantId to Triple(name, species, imageUrl)
+            return plant(plantId, name)
+        }
     }
 
     private companion object {

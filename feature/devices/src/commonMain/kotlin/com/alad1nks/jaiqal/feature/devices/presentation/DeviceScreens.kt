@@ -23,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -43,6 +44,12 @@ import jaiqal.resources.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
+
+object DeviceUiTags {
+    const val CLAIM = "devices.claim"
+    const val CLAIM_ERROR = "devices.claim-error"
+    fun calibrationStep(step: CalibrationStep) = "devices.calibration.${step.name.lowercase()}"
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +73,7 @@ fun ClaimDeviceScreen(
     ) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
+                .testTag(DeviceUiTags.CLAIM)
                 .padding(JaiqalTheme.spacing.medium),
             verticalArrangement = Arrangement.spacedBy(JaiqalTheme.spacing.medium),
         ) {
@@ -106,7 +114,7 @@ fun ClaimDeviceScreen(
                 if (error == DeviceUiError.RESULT_UNCERTAIN) {
                     OfflineBanner(stringResource(Res.string.claim_result_uncertain))
                 } else {
-                    StatusBadge(deviceErrorMessage(error), StatusKind.ERROR)
+                    DeviceErrorBadge(error)
                 }
             }
             JaiqalButton(
@@ -237,47 +245,58 @@ fun CalibrationScreen(
 }
 
 @Composable
-private fun CalibrationStepContent(state: CalibrationUiState) {
-    when (state.step) {
-        CalibrationStep.INTRODUCTION -> Explanation(
-            stringResource(Res.string.calibration_intro_title),
-            stringResource(Res.string.calibration_intro_message),
-        )
-        CalibrationStep.DRY_SAMPLE -> Explanation(
-            stringResource(Res.string.calibration_dry_title),
-            stringResource(Res.string.calibration_dry_message),
-        )
-        CalibrationStep.WET_SAMPLE -> {
-            Explanation(
-                stringResource(Res.string.calibration_wet_title),
-                stringResource(Res.string.calibration_wet_message),
+internal fun CalibrationStepContent(state: CalibrationUiState) {
+    Column(Modifier.testTag(DeviceUiTags.calibrationStep(state.step))) {
+        when (state.step) {
+            CalibrationStep.INTRODUCTION -> Explanation(
+                stringResource(Res.string.calibration_intro_title),
+                stringResource(Res.string.calibration_intro_message),
             )
-            state.drySample?.let { SampleCard(stringResource(Res.string.calibration_dry_title), it) }
-        }
-        CalibrationStep.REVIEW -> {
-            Explanation(
-                stringResource(Res.string.calibration_review_title),
-                stringResource(Res.string.calibration_review_message),
+            CalibrationStep.DRY_SAMPLE -> Explanation(
+                stringResource(Res.string.calibration_dry_title),
+                stringResource(Res.string.calibration_dry_message),
             )
-            state.drySample?.let { SampleCard(stringResource(Res.string.calibration_dry_title), it) }
-            state.wetSample?.let { SampleCard(stringResource(Res.string.calibration_wet_title), it) }
-            StatusBadge(
-                stringResource(
-                    if (state.isReversed) Res.string.calibration_reversed_adc
-                    else Res.string.calibration_normal_adc,
-                ),
-                StatusKind.NEUTRAL,
-            )
-        }
-        CalibrationStep.CONFIRMATION -> {
-            Explanation(
-                stringResource(Res.string.calibration_confirm_title),
-                stringResource(Res.string.calibration_confirm_message),
-            )
-            state.drySample?.let { SampleCard(stringResource(Res.string.calibration_dry_title), it) }
-            state.wetSample?.let { SampleCard(stringResource(Res.string.calibration_wet_title), it) }
+            CalibrationStep.WET_SAMPLE -> {
+                Explanation(
+                    stringResource(Res.string.calibration_wet_title),
+                    stringResource(Res.string.calibration_wet_message),
+                )
+                state.drySample?.let { SampleCard(stringResource(Res.string.calibration_dry_title), it) }
+            }
+            CalibrationStep.REVIEW -> {
+                Explanation(
+                    stringResource(Res.string.calibration_review_title),
+                    stringResource(Res.string.calibration_review_message),
+                )
+                state.drySample?.let { SampleCard(stringResource(Res.string.calibration_dry_title), it) }
+                state.wetSample?.let { SampleCard(stringResource(Res.string.calibration_wet_title), it) }
+                StatusBadge(
+                    stringResource(
+                        if (state.isReversed) Res.string.calibration_reversed_adc
+                        else Res.string.calibration_normal_adc,
+                    ),
+                    StatusKind.NEUTRAL,
+                )
+            }
+            CalibrationStep.CONFIRMATION -> {
+                Explanation(
+                    stringResource(Res.string.calibration_confirm_title),
+                    stringResource(Res.string.calibration_confirm_message),
+                )
+                state.drySample?.let { SampleCard(stringResource(Res.string.calibration_dry_title), it) }
+                state.wetSample?.let { SampleCard(stringResource(Res.string.calibration_wet_title), it) }
+            }
         }
     }
+}
+
+@Composable
+internal fun DeviceErrorBadge(error: DeviceUiError) {
+    StatusBadge(
+        deviceErrorMessage(error),
+        StatusKind.ERROR,
+        Modifier.testTag(DeviceUiTags.CLAIM_ERROR),
+    )
 }
 
 @Composable

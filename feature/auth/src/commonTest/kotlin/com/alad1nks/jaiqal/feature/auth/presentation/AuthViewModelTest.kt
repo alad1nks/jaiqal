@@ -53,4 +53,33 @@ class AuthViewModelTest {
         assertEquals(AuthErrorCode.INVALID_EMAIL, viewModel.state.value.error)
         assertNull(auth.lastEmail)
     }
+
+    @Test
+    fun registrationUsesValidatedCredentialsAndStartsEmailVerification() = runTest(dispatcher) {
+        val auth = FakeAuthProvider()
+        val viewModel = AuthViewModel(auth)
+        viewModel.setEmail("owner@example.com")
+        viewModel.setPassword("secret-password")
+
+        viewModel.signUp()
+        advanceUntilIdle()
+
+        assertEquals("owner@example.com", auth.lastEmail)
+        assertEquals("secret-password", auth.lastPassword)
+        assertEquals(1, auth.verificationEmailsSent)
+    }
+
+    @Test
+    fun validEmailWithWeakPasswordIsRejectedBeforeRegistration() = runTest(dispatcher) {
+        val auth = FakeAuthProvider()
+        val viewModel = AuthViewModel(auth)
+        viewModel.setEmail("owner@example.com")
+        viewModel.setPassword("12345")
+
+        viewModel.signUp()
+        advanceUntilIdle()
+
+        assertEquals(AuthErrorCode.WEAK_PASSWORD, viewModel.state.value.error)
+        assertNull(auth.lastEmail)
+    }
 }

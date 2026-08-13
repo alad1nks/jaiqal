@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.alad1nks.jaiqal.core.designsystem.component.JaiqalButton
 import com.alad1nks.jaiqal.core.designsystem.component.JaiqalCard
@@ -34,6 +35,11 @@ import jaiqal.resources.generated.resources.*
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
+
+object SettingsUiTags {
+    fun language(language: AppLanguage) = "settings.language.${language.name.lowercase()}"
+    fun theme(theme: ThemeMode) = "settings.theme.${theme.name.lowercase()}"
+}
 
 @Composable
 fun SettingsScreen(
@@ -57,6 +63,7 @@ fun SettingsScreen(
                     label = stringResource(option.labelResource()),
                     selected = language == option,
                     onClick = { onLanguageSelected(option) },
+                    testTag = SettingsUiTags.language(option),
                 )
             }
         }
@@ -66,6 +73,7 @@ fun SettingsScreen(
                     label = stringResource(option.labelResource()),
                     selected = themeMode == option,
                     onClick = { onThemeSelected(option) },
+                    testTag = SettingsUiTags.theme(option),
                 )
             }
         }
@@ -123,9 +131,9 @@ private fun PreferenceSection(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun PreferenceChoice(label: String, selected: Boolean, onClick: () -> Unit) {
+internal fun PreferenceChoice(label: String, selected: Boolean, onClick: () -> Unit, testTag: String) {
     Row(
-        modifier = Modifier.fillMaxWidth().semantics { this.selected = selected }
+        modifier = Modifier.fillMaxWidth().testTag(testTag).semantics { this.selected = selected }
             .clickable(role = Role.RadioButton, onClick = onClick)
             .padding(vertical = JaiqalTheme.spacing.small),
         horizontalArrangement = Arrangement.SpaceBetween,
