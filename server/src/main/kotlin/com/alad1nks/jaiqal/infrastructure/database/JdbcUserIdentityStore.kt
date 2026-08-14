@@ -44,7 +44,13 @@ class JdbcUserIdentityStore(private val dataSource: DataSource) : UserIdentitySt
                 statement.setObject(5, identity.createdAt)
                 statement.executeUpdate()
             }
-            user
+            connection.prepareStatement("SELECT * FROM users WHERE id=?").use { statement ->
+                statement.setObject(1, user.id)
+                statement.executeQuery().use { results ->
+                    check(results.next()) { "Created user could not be read back" }
+                    results.toUser()
+                }
+            }
         }
     } catch (failure: SQLException) {
         if (failure.sqlState != POSTGRES_UNIQUE_VIOLATION) throw failure

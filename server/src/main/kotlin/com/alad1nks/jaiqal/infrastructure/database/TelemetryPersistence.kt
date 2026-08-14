@@ -8,7 +8,6 @@ import com.alad1nks.jaiqal.telemetry.MeasurementRecord
 import com.alad1nks.jaiqal.telemetry.PreparedMeasurement
 import com.alad1nks.jaiqal.telemetry.TelemetryStore
 import kotlinx.serialization.json.Json
-import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -48,7 +47,11 @@ class ExposedTelemetryStore(private val database: Database) : TelemetryStore {
                 it[airHumidityPercent] = m.airHumidityPercent; it[lightRaw] = m.lightRaw
                 it[extra] = Json.parseToJsonElement(m.extra)
             }
-            val record = statement.resultedValues?.singleOrNull()?.let { MeasurementRecord(it[MeasurementsTable.id], m) }
+            val record = if (statement.insertedCount == 0) {
+                null
+            } else {
+                statement.resultedValues?.singleOrNull()?.let { MeasurementRecord(it[MeasurementsTable.id], m) }
+            }
             record?.let(::upsertLatestIfNewer)
             IngestionResult(record, duplicate = record == null)
         }
