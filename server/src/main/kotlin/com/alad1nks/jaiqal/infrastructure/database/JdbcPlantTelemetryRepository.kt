@@ -20,7 +20,8 @@ class JdbcPlantTelemetryRepository(private val dataSource: DataSource) : PlantTe
                 m.soil_moisture_percent, m.soil_moisture_raw, m.air_temperature_celsius,
                 m.air_humidity_percent, m.light_raw, d.soil_dry_raw, d.soil_wet_raw
                 FROM plants p JOIN devices d ON d.plant_id = p.id
-                JOIN device_latest_state s ON s.device_id = d.id JOIN measurements m ON m.id = s.measurement_id
+                JOIN device_latest_state s ON s.device_id = d.id
+                JOIN measurements m ON m.device_id = s.device_id AND m.id = s.measurement_id
                 WHERE p.id = ? AND p.user_id = ? AND p.archived_at IS NULL AND d.disabled_at IS NULL
                 ORDER BY m.measured_at DESC LIMIT 1""",
         ).use {

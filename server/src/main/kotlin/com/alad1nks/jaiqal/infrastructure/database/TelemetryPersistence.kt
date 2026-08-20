@@ -10,6 +10,7 @@ import com.alad1nks.jaiqal.telemetry.TelemetryStore
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.andWhere
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -18,11 +19,18 @@ import java.security.MessageDigest
 
 class ExposedDeviceTokenAuthenticator(private val database: Database) : DeviceTokenAuthenticator {
     override suspend fun authenticate(token: String): DevicePrincipal? {
-        val candidate = DeviceTokens.hash(token)
+        val candidateHash = DeviceTokens.hashHex(token)
         return transaction(database) {
-            DevicesTable.selectAll().firstOrNull { row ->
-                MessageDigest.isEqual(candidate, DeviceTokens.decodeHash(row[DevicesTable.tokenHash]))
-            }?.let { DevicePrincipal(it[DevicesTable.id], it[DevicesTable.disabledAt] != null) }
+            DevicesTable.selectAll()
+                .where { DevicesTable.tokenHash eq candidateHash }
+                .singleOrNull()
+                ?.let {
+                    DevicePrincipal(
+                        it[DevicesTable.id],
+                        it[DevicesTable.disabledAt] != null,
+                        it[DevicesTable.quarantineUntil]?.toInstant(),
+                    )
+                }
         }
     }
 }
@@ -30,10 +38,6 @@ class ExposedDeviceTokenAuthenticator(private val database: Database) : DeviceTo
 object DeviceTokens {
     fun hash(token: String): ByteArray = MessageDigest.getInstance("SHA-256").digest(token.toByteArray(Charsets.UTF_8))
     fun hashHex(token: String): String = hash(token).joinToString("") { "%02x".format(it) }
-    internal fun decodeHash(value: String): ByteArray = runCatching {
-        require(value.length == 64)
-        ByteArray(32) { value.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
-    }.getOrElse { ByteArray(32) }
 }
 
 class ExposedTelemetryStore(private val database: Database) : TelemetryStore {
@@ -66,7 +70,9 @@ class ExposedTelemetryStore(private val database: Database) : TelemetryStore {
     private fun upsertLatestIfNewer(record: MeasurementRecord) {
         val current = DeviceLatestStateTable.selectAll().where { DeviceLatestStateTable.deviceId eq record.measurement.deviceId }.singleOrNull()
         val currentMeasuredAt = current?.let { state ->
-            MeasurementsTable.selectAll().where { MeasurementsTable.id eq state[DeviceLatestStateTable.measurementId] }
+            MeasurementsTable.selectAll()
+                .where { MeasurementsTable.deviceId eq record.measurement.deviceId }
+                .andWhere { MeasurementsTable.id eq state[DeviceLatestStateTable.measurementId] }
                 .single()[MeasurementsTable.measuredAt]
         }
         if (currentMeasuredAt == null || record.measurement.measuredAt.isAfter(currentMeasuredAt)) {

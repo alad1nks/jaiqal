@@ -12,6 +12,19 @@ import kotlin.math.min
 fun interface NotificationSender { fun send(notification: OutboxNotification) }
 data class OutboxNotification(val id: Long, val channel: String, val payload: String, val attempts: Int)
 
+enum class NotificationFailureCode {
+    AUTHENTICATION_FAILED,
+    RATE_LIMITED,
+    PROVIDER_UNAVAILABLE,
+    INVALID_DESTINATION,
+    DELIVERY_FAILED,
+}
+
+class NotificationDeliveryException(
+    val failureCode: NotificationFailureCode,
+    cause: Throwable? = null,
+) : RuntimeException(failureCode.name, cause)
+
 class LoggingNotificationSender : NotificationSender {
     private val log = LoggerFactory.getLogger(javaClass)
     override fun send(notification: OutboxNotification) {
@@ -67,9 +80,28 @@ class NotificationWorker(
         c.commit(); rows
     }
     private fun complete(id:Long)=transaction { c -> c.prepareStatement("UPDATE notification_outbox SET status='COMPLETED',completed_at=?,locked_at=NULL,locked_by=NULL,last_error=NULL WHERE id=? AND status='PROCESSING' AND locked_by=?").use{s->s.setObject(1,OffsetDateTime.now(clock));s.setLong(2,id);s.setString(3,workerId);s.executeUpdate()};c.commit() }
-    private fun retry(n:OutboxNotification,error:Throwable)=transaction { c ->
-        val exponent = (n.attempts-1).coerceIn(0,30); val delay = min(config.outboxMaxBackoffSeconds, 1L shl exponent)
-        c.prepareStatement("UPDATE notification_outbox SET status='PENDING',available_at=?,locked_at=NULL,locked_by=NULL,last_error=? WHERE id=? AND status='PROCESSING' AND locked_by=?").use{s->s.setObject(1,OffsetDateTime.now(clock).plusSeconds(delay));s.setString(2,(error.message?:error::class.simpleName.orEmpty()).take(4000));s.setLong(3,n.id);s.setString(4,workerId);s.executeUpdate()};c.commit()
+    private fun retry(notification: OutboxNotification, error: Throwable) = transaction { connection ->
+        val exponent = (notification.attempts - 1).coerceIn(0, 30)
+        val delay = min(config.outboxMaxBackoffSeconds, 1L shl exponent)
+        connection.prepareStatement(
+            """UPDATE notification_outbox
+                SET status='PENDING',available_at=?,locked_at=NULL,locked_by=NULL,last_error=?
+                WHERE id=? AND status='PROCESSING' AND locked_by=?""",
+        ).use { statement ->
+            statement.setObject(1, OffsetDateTime.now(clock).plusSeconds(delay))
+            statement.setString(2, notificationFailureCode(error).name)
+            statement.setLong(3, notification.id)
+            statement.setString(4, workerId)
+            statement.executeUpdate()
+        }
+        connection.commit()
     }
     private fun <T> transaction(block:(Connection)->T):T=dataSource.connection.use{c->try{block(c)}catch(e:Throwable){c.rollback();throw e}}
 }
+
+internal fun notificationFailureCode(error: Throwable): NotificationFailureCode =
+    generateSequence(error) { current -> current.cause?.takeUnless { it === current } }
+        .filterIsInstance<NotificationDeliveryException>()
+        .firstOrNull()
+        ?.failureCode
+        ?: NotificationFailureCode.DELIVERY_FAILED

@@ -43,6 +43,7 @@ class PlantTelemetryService(
     }
 
     fun requireOwnership(userId: UUID, plantId: UUID) { if (!repository.ownsPlant(userId, plantId)) notFound() }
+    fun ownsPlant(userId: UUID, plantId: UUID): Boolean = repository.ownsPlant(userId, plantId)
     private fun parse(value: String?): OffsetDateTime? = value?.let {
         runCatching { OffsetDateTime.parse(it) }.getOrElse { bad("INVALID_DATE", "Dates must use ISO-8601 with an offset") }
     }

@@ -12,6 +12,7 @@ import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class TelemetryIngestionTest {
     @Test fun `calibration supports normal reversed clamped and equal values`() {
@@ -47,6 +48,61 @@ class TelemetryIngestionTest {
         service.ingest(device, listOf(DeviceMeasurementRequest(2, measuredAt = old, lightRaw = 10)))
         assertEquals(true, "outside_window" in extra)
         assertEquals(1, events.size)
+    }
+
+    @Test fun `firmware version accepts exact boundary and is normalized`() {
+        var storedFirmware: String? = null
+        val store = TelemetryStore { _, values ->
+            storedFirmware = values.single().firmwareVersion
+            listOf(IngestionResult(MeasurementRecord(1, values.single().measurement), false))
+        }
+        val service = TelemetryIngestionService(store, TelemetryConfig(), clock = clock)
+
+        service.ingest(
+            device,
+            listOf(DeviceMeasurementRequest(3, firmwareVersion = "  ${"v".repeat(100)}  ", lightRaw = 10)),
+        )
+
+        assertEquals("v".repeat(100), storedFirmware)
+    }
+
+    @Test fun `firmware version rejects overflow and control characters before store`() {
+        var storeCalled = false
+        val service = TelemetryIngestionService(
+            TelemetryStore { _, _ -> storeCalled = true; error("must not run") },
+            TelemetryConfig(),
+            clock = clock,
+        )
+
+        listOf("v".repeat(101), "version\n1").forEach { firmwareVersion ->
+            val error = assertFailsWith<TelemetryValidationException> {
+                service.ingest(
+                    device,
+                    listOf(DeviceMeasurementRequest(4, firmwareVersion = firmwareVersion, lightRaw = 10)),
+                )
+            }
+            assertEquals("INVALID_FIRMWARE_VERSION", error.errorCode)
+        }
+        assertTrue(!storeCalled)
+    }
+
+    @Test fun `quarantine decision stops persistence with a distinct temporary error`() {
+        var storeCalled = false
+        val service = TelemetryIngestionService(
+            TelemetryStore { _, _ -> storeCalled = true; error("must not run") },
+            TelemetryConfig(),
+            clock = clock,
+            quota = DeviceIngestionQuota { _, _ ->
+                IngestionQuotaDecision(allowed = false, retryAfterSeconds = 300, quarantined = true)
+            },
+        )
+
+        val error = assertFailsWith<DeviceQuarantinedException> {
+            service.ingest(device, listOf(DeviceMeasurementRequest(5, lightRaw = 10)))
+        }
+
+        assertEquals(300, error.retryAfterSeconds)
+        assertEquals(false, storeCalled)
     }
 
     private val clock = Clock.fixed(Instant.parse("2026-07-26T12:00:00Z"), ZoneOffset.UTC)

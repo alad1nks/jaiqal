@@ -20,8 +20,7 @@ class AlertService(private val dataSource: DataSource, private val clock: Clock 
 
     fun putRules(userId: UUID, plantId: UUID, request: PutAlertRulesRequest): List<AlertRuleResponse> = transaction { c ->
         requirePlant(c, userId, plantId)
-        if (request.rules.map { it.type }.distinct().size != request.rules.size) bad("DUPLICATE_ALERT_TYPE", "Each alert type may occur only once")
-        request.rules.forEach(::validate)
+        validateAlertRules(request)
         val retained = request.rules.map { it.type.name }.toSet()
         request.rules.forEach { rule ->
             c.prepareStatement("""INSERT INTO alert_rules(id,plant_id,type,threshold,required_duration_seconds,recovery_duration_seconds,enabled,created_at,updated_at)
@@ -91,7 +90,7 @@ class AlertService(private val dataSource: DataSource, private val clock: Clock 
     fun plantsWithRules(): List<UUID> = connection { c -> c.createStatement().executeQuery("SELECT DISTINCT plant_id FROM alert_rules WHERE enabled=true").use { rs -> buildList { while (rs.next()) add(rs.getObject(1, UUID::class.java)) } } }
 
     private data class Sample(val soil: Double?, val temperature: Double?, val lastSeen: OffsetDateTime)
-    private fun latestSample(c: Connection, plant: UUID): Sample? = c.prepareStatement("""SELECT m.soil_moisture_percent,m.air_temperature_celsius,d.last_seen_at FROM devices d LEFT JOIN device_latest_state l ON l.device_id=d.id LEFT JOIN measurements m ON m.id=l.measurement_id WHERE d.plant_id=? AND d.disabled_at IS NULL ORDER BY d.last_seen_at DESC NULLS LAST LIMIT 1""").use { s ->
+    private fun latestSample(c: Connection, plant: UUID): Sample? = c.prepareStatement("""SELECT m.soil_moisture_percent,m.air_temperature_celsius,d.last_seen_at FROM devices d LEFT JOIN device_latest_state l ON l.device_id=d.id LEFT JOIN measurements m ON m.device_id=l.device_id AND m.id=l.measurement_id WHERE d.plant_id=? AND d.disabled_at IS NULL ORDER BY d.last_seen_at DESC NULLS LAST LIMIT 1""").use { s ->
         s.setObject(1, plant); s.executeQuery().use { r -> if (r.next() && r.getObject(3) != null) Sample(r.getObject(1) as Double?, r.getObject(2) as Double?, r.getObject(3, OffsetDateTime::class.java)) else null }
     }
     private fun state(c: Connection, rule: UUID, active: Boolean) = c.prepareStatement("SELECT condition_since,recovery_since FROM alert_rule_state WHERE rule_id=?").use { s -> s.setObject(1, rule); s.executeQuery().use { r -> if (r.next()) AlertEvaluationState(r.getObject(1,OffsetDateTime::class.java),r.getObject(2,OffsetDateTime::class.java),active) else AlertEvaluationState(active=active) } }
@@ -106,16 +105,38 @@ class AlertService(private val dataSource: DataSource, private val clock: Clock 
     private fun enqueue(c: Connection,event:UUID,action:String,type:AlertType,now:OffsetDateTime)=c.prepareStatement("INSERT INTO notification_outbox(alert_event_id,channel,payload,status,attempts,available_at,created_at,notification_key) VALUES(?,'LOG',?::jsonb,'PENDING',0,?,?,?) ON CONFLICT(notification_key) DO NOTHING").use{s->s.setObject(1,event);s.setString(2,Json.encodeToString(mapOf("eventId" to event.toString(),"action" to action,"type" to type.name)));s.setObject(3,now);s.setObject(4,now);s.setString(5,"$event:$action:LOG");s.executeUpdate();Unit}
     private fun requirePlant(c:Connection,user:UUID,plant:UUID){ if(c.prepareStatement("SELECT 1 FROM plants WHERE id=? AND user_id=? AND archived_at IS NULL").use{s->s.setObject(1,plant);s.setObject(2,user);s.executeQuery().use{it.next()}}.not()) notFound() }
     private fun java.sql.ResultSet.rule()=AlertRuleResponse(getObject("id",UUID::class.java).toString(),AlertType.valueOf(getString("type")),getObject("threshold") as Double?,getLong("required_duration_seconds"),getLong("recovery_duration_seconds"),getBoolean("enabled"))
-    private fun validate(r:PutAlertRuleRequest){
-        val threshold=r.threshold
-        if(threshold==null || !threshold.isFinite() ||
-            (r.type == AlertType.LOW_SOIL_MOISTURE && threshold !in 0.0..100.0) ||
-            (r.type == AlertType.DEVICE_OFFLINE && threshold <= 0)
-        ) bad("INVALID_THRESHOLD","Threshold is invalid for this alert type")
-        if(r.requiredDurationSeconds !in 0..2_592_000||r.recoveryDurationSeconds !in 0..2_592_000) bad("INVALID_DURATION","Durations must be between 0 and 2592000 seconds")
-    }
     private fun notFound():Nothing=throw UserApiException(404,"NOT_FOUND","Plant or alert was not found")
-    private fun bad(code:String,message:String):Nothing=throw UserApiException(400,code,message)
     private fun <T> connection(block:(Connection)->T):T=dataSource.connection.use(block)
     private fun <T> transaction(block:(Connection)->T):T=dataSource.connection.use { c -> try { block(c) } catch(e:Throwable){c.rollback();throw e} }
 }
+
+internal fun validateAlertRules(request: PutAlertRulesRequest) {
+    if (request.rules.size > AlertType.entries.size) {
+        alertValidationError(
+            "INVALID_ALERT_RULE_COUNT",
+            "At most ${AlertType.entries.size} alert rules are allowed",
+        )
+    }
+    if (request.rules.map { it.type }.distinct().size != request.rules.size) {
+        alertValidationError("DUPLICATE_ALERT_TYPE", "Each alert type may occur only once")
+    }
+    request.rules.forEach(::validateAlertRule)
+}
+
+private fun validateAlertRule(rule: PutAlertRuleRequest) {
+    val threshold = rule.threshold
+    if (
+        threshold == null ||
+        !threshold.isFinite() ||
+        (rule.type == AlertType.LOW_SOIL_MOISTURE && threshold !in 0.0..100.0) ||
+        (rule.type == AlertType.DEVICE_OFFLINE && threshold <= 0)
+    ) {
+        alertValidationError("INVALID_THRESHOLD", "Threshold is invalid for this alert type")
+    }
+    if (rule.requiredDurationSeconds !in 0..2_592_000 || rule.recoveryDurationSeconds !in 0..2_592_000) {
+        alertValidationError("INVALID_DURATION", "Durations must be between 0 and 2592000 seconds")
+    }
+}
+
+private fun alertValidationError(code: String, message: String): Nothing =
+    throw UserApiException(400, code, message)

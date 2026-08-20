@@ -27,15 +27,18 @@ import io.ktor.server.routing.routing
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import org.junit.Test
+import java.time.Instant
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class FirebaseAuthenticationTest {
+    private val validUntil = Instant.parse("2100-01-01T00:00:00Z")
+
     @Test
     fun `valid Firebase token creates principal with internal UUID`() = testApplication {
         val verifier = FakeFirebaseTokenVerifier(
-            mapOf("valid-token" to Result.success(VerifiedFirebaseToken("firebase-uid", "user@example.test", true))),
+            mapOf("valid-token" to Result.success(VerifiedFirebaseToken("firebase-uid", "user@example.test", true, validUntil))),
         )
         val store = MemoryIdentityStore()
         application { firebaseTestApplication(verifier, FirebaseUserIdentityService(store, true)) }
@@ -101,9 +104,29 @@ class FirebaseAuthenticationTest {
     }
 
     @Test
+    fun `verified token that is already expired returns neutral 401`() = testApplication {
+        val verifier = FakeFirebaseTokenVerifier(
+            mapOf(
+                "expired-token" to Result.success(
+                    VerifiedFirebaseToken("firebase-uid", null, false, Instant.now().minusSeconds(1)),
+                ),
+            ),
+        )
+        val store = MemoryIdentityStore()
+        application { firebaseTestApplication(verifier, FirebaseUserIdentityService(store, true)) }
+
+        val response = client.get("/testing/firebase") {
+            header(HttpHeaders.Authorization, "Bearer expired-token")
+        }
+
+        assertNeutralUnauthorized(response.status, response.bodyAsText())
+        assertTrue(store.users.isEmpty())
+    }
+
+    @Test
     fun `unknown UID with disabled provisioning returns neutral 401`() = testApplication {
         val verifier = FakeFirebaseTokenVerifier(
-            mapOf("valid-token" to Result.success(VerifiedFirebaseToken("unknown-uid", null, false))),
+            mapOf("valid-token" to Result.success(VerifiedFirebaseToken("unknown-uid", null, false, validUntil))),
         )
         application { firebaseTestApplication(verifier, FirebaseUserIdentityService(MemoryIdentityStore(), false)) }
 
@@ -117,7 +140,7 @@ class FirebaseAuthenticationTest {
     @Test
     fun `identity uniqueness conflict returns neutral 401`() = testApplication {
         val verifier = FakeFirebaseTokenVerifier(
-            mapOf("valid-token" to Result.success(VerifiedFirebaseToken("firebase-uid", null, false))),
+            mapOf("valid-token" to Result.success(VerifiedFirebaseToken("firebase-uid", null, false, validUntil))),
         )
         val conflictingStore = object : UserIdentityStore {
             override fun findUserByIdentity(provider: String, externalSubject: String): UserRecord? = null

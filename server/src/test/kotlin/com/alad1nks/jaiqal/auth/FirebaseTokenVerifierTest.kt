@@ -1,6 +1,7 @@
 package com.alad1nks.jaiqal.auth
 
 import kotlinx.coroutines.runBlocking
+import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -12,6 +13,7 @@ class FirebaseTokenVerifierTest {
             uid = "firebase-user-123",
             email = "user@example.test",
             emailVerified = true,
+            expiresAt = Instant.parse("2100-01-01T00:00:00Z"),
         )
         val verifier = FakeFirebaseTokenVerifier(
             mapOf("valid-id-token" to Result.success(expected)),
@@ -37,7 +39,12 @@ class FirebaseTokenVerifierTest {
     @Test
     fun verifiedTokenRequiresUid() {
         assertFailsWith<IllegalArgumentException> {
-            VerifiedFirebaseToken(uid = " ", email = null, emailVerified = false)
+            VerifiedFirebaseToken(
+                uid = " ",
+                email = null,
+                emailVerified = false,
+                expiresAt = Instant.parse("2100-01-01T00:00:00Z"),
+            )
         }
     }
 }

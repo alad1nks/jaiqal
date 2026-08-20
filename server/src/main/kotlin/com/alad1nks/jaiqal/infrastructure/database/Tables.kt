@@ -39,12 +39,13 @@ internal object DevicesTable : Table("devices") {
     val id = javaUUID("id")
     val plantId = javaUUID("plant_id").nullable()
     val name = varchar("name", 255)
-    val tokenHash = varchar("token_hash", 255)
+    val tokenHash = varchar("token_hash", 64)
     val firmwareVersion = varchar("firmware_version", 100).nullable()
     val lastSeenAt = timestampWithTimeZone("last_seen_at").nullable()
     val soilDryRaw = integer("soil_dry_raw").nullable()
     val soilWetRaw = integer("soil_wet_raw").nullable()
     val disabledAt = timestampWithTimeZone("disabled_at").nullable()
+    val quarantineUntil = timestampWithTimeZone("quarantine_until").nullable()
     val createdAt = timestampWithTimeZone("created_at")
     override val primaryKey = PrimaryKey(id)
 }
@@ -61,7 +62,7 @@ internal object MeasurementsTable : Table("measurements") {
     val airHumidityPercent = double("air_humidity_percent").nullable()
     val lightRaw = integer("light_raw").nullable()
     val extra = jsonb<JsonElement>("extra", Json.Default)
-    override val primaryKey = PrimaryKey(id)
+    override val primaryKey = PrimaryKey(deviceId, id)
 }
 
 internal object DeviceLatestStateTable : Table("device_latest_state") {

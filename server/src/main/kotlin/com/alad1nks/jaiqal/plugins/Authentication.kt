@@ -11,8 +11,11 @@ import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.auth.Authentication
 import io.ktor.server.auth.bearer
+import io.ktor.server.plugins.callid.callId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.time.Clock
+import java.time.Instant
 
 const val FIREBASE_USER_AUTH = "firebase-user"
 const val DEVICE_TOKEN_AUTH = "device-token"
@@ -21,6 +24,7 @@ fun Application.configureAuthentication(
     deviceTokenAuthenticator: DeviceTokenAuthenticator,
     firebaseTokenVerifier: FirebaseTokenVerifier? = null,
     firebaseUsers: FirebaseUserIdentityService? = null,
+    clock: Clock = Clock.systemUTC(),
 ) {
     install(Authentication) {
         bearer(FIREBASE_USER_AUTH) {
@@ -35,8 +39,9 @@ fun Application.configureAuthentication(
                 } catch (_: FirebaseTokenVerificationException) {
                     return@authenticate null
                 }
+                if (!verified.expiresAt.isAfter(Instant.now(clock))) return@authenticate null
                 val user = try {
-                    withContext(Dispatchers.IO) { users.resolve(verified) }
+                    withContext(Dispatchers.IO) { users.resolve(verified, callId) }
                 } catch (_: UnknownFirebaseIdentityException) {
                     return@authenticate null
                 } catch (_: FirebaseIdentityConflictException) {
@@ -47,6 +52,7 @@ fun Application.configureAuthentication(
                     firebaseUid = verified.uid,
                     email = verified.email,
                     emailVerified = verified.emailVerified,
+                    expiresAt = verified.expiresAt,
                 )
             }
         }

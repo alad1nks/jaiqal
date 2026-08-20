@@ -72,8 +72,10 @@ Device-аутентификация отделена от user auth:
 - `V3__alert_processing_state.sql` добавляет состояние alert engine, idempotency key
   outbox и partial index для active devices.
 
-Сервер запускает Flyway до подъёма HTTP. Применённые V1–V3 нельзя менять;
-поддержка Firebase должна появиться в новой numbered migration.
+В development сервер запускает Flyway до подъёма HTTP. В production миграции
+выполняются отдельным deployment job с `MIGRATION_DATABASE_*`, а runtime process
+не получает DDL credentials. Применённые V1–V3 нельзя менять; поддержка Firebase
+должна появиться в новой numbered migration.
 
 ## Исходная конфигурация до миграции
 

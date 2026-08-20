@@ -1,0 +1,52 @@
+name: Staging DAST
+
+on:
+  workflow_call:
+    inputs:
+      expected_commit:
+        description: Full Git commit SHA deployed to staging
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      expected_commit:
+        description: Full Git commit SHA deployed to staging
+        required: true
+        type: string
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-security-dast
+  cancel-in-progress: false
+
+jobs:
+  dast:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: staging-security
+    env:
+      DAST_BASE_URL: ${{ vars.STAGING_BASE_URL }}
+      DAST_ALLOWED_ORIGIN: ${{ vars.STAGING_ALLOWED_ORIGIN }}
+      DAST_EXPECTED_COMMIT: ${{ inputs.expected_commit || vars.STAGING_EXPECTED_COMMIT }}
+      DAST_USER_PLANT_ID: ${{ vars.STAGING_DAST_USER_PLANT_ID }}
+      DAST_OTHER_USER_PLANT_ID: ${{ vars.STAGING_DAST_OTHER_USER_PLANT_ID }}
+      DAST_RATE_LIMIT_ATTEMPTS: ${{ vars.STAGING_DAST_RATE_LIMIT_ATTEMPTS || '80' }}
+      DAST_MAX_BODY_BYTES: ${{ vars.STAGING_DAST_MAX_BODY_BYTES || '65536' }}
+      DAST_SSE_MAX_LIFETIME_SECONDS: ${{ vars.STAGING_DAST_SSE_MAX_LIFETIME_SECONDS || '15' }}
+      DAST_FIREBASE_WEB_API_KEY: ${{ secrets.STAGING_DAST_FIREBASE_WEB_API_KEY }}
+      DAST_USER_REFRESH_TOKEN: ${{ secrets.STAGING_DAST_USER_REFRESH_TOKEN }}
+      DAST_OTHER_USER_REFRESH_TOKEN: ${{ secrets.STAGING_DAST_OTHER_USER_REFRESH_TOKEN }}
+      DAST_DEVICE_TOKEN: ${{ secrets.STAGING_DAST_DEVICE_TOKEN }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Run safe staging DAST gate
+        run: bash scripts/run-staging-dast.sh

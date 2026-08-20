@@ -4,13 +4,20 @@ import com.alad1nks.jaiqal.auth.DeviceTokenAuthenticator
 import com.alad1nks.jaiqal.auth.FirebaseTokenVerifier
 import com.alad1nks.jaiqal.config.AppConfig
 import com.alad1nks.jaiqal.infrastructure.database.DatabaseReadiness
+import com.alad1nks.jaiqal.infrastructure.database.CachedDatabaseReadiness
 import com.alad1nks.jaiqal.infrastructure.database.JdbcDatabaseReadiness
 import com.alad1nks.jaiqal.infrastructure.database.DatabaseInfrastructure
+import com.alad1nks.jaiqal.infrastructure.database.DatabaseMigrator
+import com.alad1nks.jaiqal.config.MigrationDatabaseConfig
 import com.alad1nks.jaiqal.infrastructure.database.DataSourceDatabaseReadiness
 import com.alad1nks.jaiqal.infrastructure.database.ExposedDeviceRepository
 import com.alad1nks.jaiqal.infrastructure.database.ExposedDeviceTokenAuthenticator
 import com.alad1nks.jaiqal.infrastructure.database.ExposedTelemetryStore
+import com.alad1nks.jaiqal.infrastructure.database.JdbcDeviceIngestionQuota
+import com.alad1nks.jaiqal.infrastructure.database.DatabaseCapacityMonitor
+import com.alad1nks.jaiqal.infrastructure.database.TelemetryRetentionWorker
 import com.alad1nks.jaiqal.infrastructure.security.FirebaseAdmin
+import com.alad1nks.jaiqal.infrastructure.security.SecurityAuditTrail
 import com.alad1nks.jaiqal.devices.DeviceRepository
 import com.alad1nks.jaiqal.telemetry.TelemetryIngestionService
 import com.alad1nks.jaiqal.infrastructure.database.JdbcUserApplicationStore
@@ -25,6 +32,7 @@ import com.alad1nks.jaiqal.plugins.configureHttp
 import com.alad1nks.jaiqal.plugins.configureMonitoring
 import com.alad1nks.jaiqal.plugins.configureRouting
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import com.alad1nks.jaiqal.alerts.AlertService
@@ -39,9 +47,15 @@ import org.slf4j.LoggerFactory
 fun main() {
     val config = AppConfig.fromEnvironment()
     val firebaseTokenVerifier = FirebaseAdmin.initialize(config.firebase)
+    if (!config.deployment.isProduction) {
+        DatabaseMigrator.migrate(MigrationDatabaseConfig.fromEnvironmentOrRuntime(config.database))
+    }
     val database = DatabaseInfrastructure.create(config.database)
-    database.migrate()
+    if (config.deployment.isProduction) {
+        database.verifyRuntimeHasNoDdlPrivileges()
+    }
     val eventBus = MeasurementEventBus()
+    val securityAuditTrail = SecurityAuditTrail.logging()
     val alertService = AlertService(database.dataSource)
     val notificationWorker = NotificationWorker(database.dataSource, LoggingNotificationSender(), config.alerts)
     Runtime.getRuntime().addShutdownHook(Thread(database::close))
@@ -54,7 +68,16 @@ fun main() {
             config, DataSourceDatabaseReadiness(database.dataSource),
             ExposedDeviceTokenAuthenticator(database.database),
             ExposedDeviceRepository(database.database),
-            TelemetryIngestionService(ExposedTelemetryStore(database.database), config.telemetry, eventBus),
+            TelemetryIngestionService(
+                store = ExposedTelemetryStore(database.database),
+                config = config.telemetry,
+                publisher = eventBus,
+                quota = JdbcDeviceIngestionQuota(
+                    database.dataSource,
+                    config.telemetry,
+                    securityAuditTrail = securityAuditTrail,
+                ),
+            ),
             UserApplicationService(JdbcUserApplicationStore(database.dataSource)),
             PlantTelemetryService(JdbcPlantTelemetryRepository(database.dataSource), config.history),
             eventBus,
@@ -64,7 +87,11 @@ fun main() {
             FirebaseUserIdentityService(
                 JdbcUserIdentityStore(database.dataSource),
                 config.firebase.autoProvisionUsers,
+                securityAuditTrail = securityAuditTrail,
             ),
+            DatabaseCapacityMonitor(database.dataSource, config.capacityMonitoring),
+            TelemetryRetentionWorker(database.dataSource, config.telemetryRetention),
+            securityAuditTrail,
         )
     }.start(wait = true)
 }
@@ -82,11 +109,32 @@ fun Application.configureApplication(
     notificationWorker: NotificationWorker? = null,
     firebaseTokenVerifier: FirebaseTokenVerifier? = null,
     firebaseUsers: FirebaseUserIdentityService? = null,
+    databaseCapacityMonitor: DatabaseCapacityMonitor? = null,
+    telemetryRetentionWorker: TelemetryRetentionWorker? = null,
+    securityAuditTrail: SecurityAuditTrail = SecurityAuditTrail.logging(),
+    directPeerAddress: (ApplicationCall) -> String = { call -> call.request.local.remoteAddress },
 ) {
     configureMonitoring()
-    configureHttp(config)
+    configureHttp(config, securityAuditTrail, directPeerAddress)
     configureAuthentication(deviceTokenAuthenticator, firebaseTokenVerifier, firebaseUsers)
-    configureRouting(databaseReadiness, deviceRepository, telemetry, userApplication, plantTelemetry, eventBus, config.history.heartbeatSeconds, alertService)
+    configureRouting(
+        databaseReadiness = CachedDatabaseReadiness(
+            delegate = databaseReadiness,
+            cacheTtlMilliseconds = config.httpLimits.readinessCacheTtlMilliseconds,
+        ),
+        deviceRepository = deviceRepository,
+        telemetry = telemetry,
+        userApplication = userApplication,
+        plantTelemetry = plantTelemetry,
+        eventBus = eventBus,
+        heartbeatSeconds = config.history.heartbeatSeconds,
+        streamMaxLifetimeSeconds = config.history.streamMaxLifetimeSeconds,
+        streamOwnershipRecheckSeconds = config.history.streamOwnershipRecheckSeconds,
+        deploymentCommitSha = config.deployment.commitSha,
+        httpLimits = config.httpLimits,
+        alerts = alertService,
+        securityAuditTrail = securityAuditTrail,
+    )
     if (alertService != null) {
         eventBus?.let { bus -> launch(Dispatchers.IO) { bus.updates.collect { event -> event.plantId?.let(alertService::evaluatePlant) } } }
         launch(Dispatchers.IO) {
@@ -102,6 +150,21 @@ fun Application.configureApplication(
         while (true) {
             runCatching(notificationWorker::runOnce).onFailure { log.error("Notification outbox poll failed", it) }
             delay(config.alerts.outboxPollSeconds * 1_000)
+        }
+    }
+    if (databaseCapacityMonitor != null) launch(Dispatchers.IO) {
+        val log = LoggerFactory.getLogger("DatabaseCapacityBackgroundWorker")
+        while (true) {
+            runCatching(databaseCapacityMonitor::check).onFailure { log.error("Database capacity check failed", it) }
+            delay(config.capacityMonitoring.intervalSeconds * 1_000)
+        }
+    }
+    if (telemetryRetentionWorker != null) launch(Dispatchers.IO) {
+        val log = LoggerFactory.getLogger("TelemetryRetentionBackgroundWorker")
+        while (true) {
+            runCatching(telemetryRetentionWorker::runOnce)
+                .onFailure { log.error("Telemetry retention failed", it) }
+            delay(config.telemetryRetention.intervalSeconds * 1_000)
         }
     }
 }
