@@ -4,6 +4,8 @@ COPY gradle gradle
 COPY gradlew settings.gradle.kts build.gradle.kts gradle.properties ./
 COPY app app
 COPY core core
+COPY feature feature
+COPY resources resources
 COPY server server
 RUN ./gradlew --no-daemon :server:installDist
 

@@ -195,6 +195,13 @@ while IFS= read -r reference; do
   fi
 done < <(sed -nE 's/^FROM[[:space:]]+([^[:space:]]+).*$/\1/p' "$repo_root/server/Dockerfile")
 
+while IFS= read -r project_root; do
+  if ! grep -Eq "^COPY[[:space:]]+${project_root}[[:space:]]+${project_root}([[:space:]]|$)" "$repo_root/server/Dockerfile"; then
+    echo "Docker build stage is missing Gradle project root: $project_root" >&2
+    failures=$((failures + 1))
+  fi
+done < <(sed -nE 's/^[[:space:]]*include\(\":([^:\"]+).*$/\1/p' "$repo_root/settings.gradle.kts" | sort -u)
+
 while IFS= read -r reference; do
   if [[ ! "$reference" =~ ^[^@[:space:]]+@sha256:[0-9a-f]{64}$ ]]; then
     echo "Mutable or invalid Compose image: $reference" >&2

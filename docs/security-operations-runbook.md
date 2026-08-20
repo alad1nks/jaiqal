@@ -47,7 +47,10 @@ files запрещено прикладывать к evidence.
    - require strict/up-to-date checks `verification`, `sast`, `supply-chain` и
      `dependency-review` от GitHub Actions;
    - block force pushes и deletion; правила распространяются на administrators.
-3. В **Settings → Code security** включить secret scanning и push protection.
+3. В **Settings → Code security** включить Dependency Graph. Там же включить
+   secret scanning и push protection. Без Dependency Graph GitHub job
+   `dependency-review` всегда завершается ошибкой
+   `Dependency review is not supported on this repository`.
 4. Проверить состояние независимым чтением:
 
    ```bash

@@ -71,6 +71,7 @@ def write_supply_fixture(root)
     ".github/workflows/staging-dast.yml" => ".github/workflows/staging-dast.yml",
     ".github/workflows/publish-production-image.yml" => ".github/workflows/publish-production-image.yml",
     ".github/CODEOWNERS" => ".github/CODEOWNERS",
+    "settings.gradle.kts" => "settings.gradle.kts",
     "server/Dockerfile" => "server/Dockerfile",
     "gradle/verification-metadata.xml" => "gradle/verification-metadata.xml",
     "gradle/wrapper/gradle-wrapper.properties" => "gradle/wrapper/gradle-wrapper.properties",
@@ -271,6 +272,7 @@ Dir.mktmpdir("jaiqal-security-guard-tests-") do |temporary_root|
   supply_cases = {
     "mutable action" => ->(root, _) { replace_once(File.join(root, ".github/workflows/ci.yml"), "actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5", "actions/checkout@v4") },
     "mutable Docker base" => ->(root, _) { replace_once(File.join(root, "server/Dockerfile"), /@sha256:[0-9a-f]{64}/.match(File.read(File.join(root, "server/Dockerfile")))[0], ":latest") },
+    "missing Gradle project root in Docker build" => ->(root, _) { path = File.join(root, "server/Dockerfile"); File.write(path, File.read(path).lines.reject { |line| line == "COPY feature feature\n" }.join) },
     "mutable Compose image" => ->(root, _) { path = Dir.glob(File.join(root, "compose*.yaml")).find { |candidate| File.read(candidate).include?("@sha256:") }; replace_once(path, /@sha256:[0-9a-f]{64}/.match(File.read(path))[0], ":latest") },
     "missing verification metadata" => ->(root, _) { File.delete(File.join(root, "gradle/verification-metadata.xml")) },
     "missing wrapper checksum" => ->(root, _) { path = File.join(root, "gradle/wrapper/gradle-wrapper.properties"); File.write(path, File.read(path).lines.reject { |line| line.start_with?("distributionSha256Sum=") }.join) },

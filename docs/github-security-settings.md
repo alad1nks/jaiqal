@@ -18,6 +18,10 @@ gh auth login
 ./scripts/configure-github-security.sh alad1nks/jaiqal main
 ```
 
+Before relying on the required `dependency-review` check, enable **Dependency
+Graph** in **Settings → Code security**. GitHub's dependency review action is not
+supported while the repository dependency graph is disabled.
+
 The resulting protection requires an up-to-date pull request, one approving
 review, code-owner review, dismissal of stale approvals, approval after the last
 push, resolved conversations, and successful `verification`, `sast`,
