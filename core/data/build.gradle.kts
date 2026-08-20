@@ -46,6 +46,9 @@ kotlin {
             implementation(libs.sqldelight.androidDriver)
             implementation(project.dependencies.platform(libs.firebase.bom))
             implementation(libs.firebase.auth)
+            implementation(libs.androidx.credentials)
+            implementation(libs.androidx.credentials.playServicesAuth)
+            implementation(libs.googleid)
         }
         iosMain.dependencies { implementation(libs.sqldelight.nativeDriver) }
         jvmMain.dependencies { implementation(libs.sqldelight.sqliteDriver) }
