@@ -1,8 +1,11 @@
 .git
 .gradle
+.cache/trivy
 .idea
 **/build
 **/.kotlin
 node_modules
 local.properties
 .env
+*.credentials
+**/*.credentials

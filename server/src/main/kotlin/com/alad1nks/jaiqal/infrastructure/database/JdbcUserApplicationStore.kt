@@ -43,6 +43,30 @@ class JdbcUserApplicationStore(private val dataSource: DataSource) : UserApplica
     }
     override fun updateCalibration(userId: UUID, deviceId: UUID, dry: Int, wet: Int) = ownedDeviceUpdate(userId,deviceId,"soil_dry_raw=?,soil_wet_raw=?",dry,wet)
     override fun rotateDeviceToken(userId: UUID, deviceId: UUID, tokenHash: String) = ownedDeviceUpdate(userId,deviceId,"token_hash=?",tokenHash)
+    override fun restoreDevice(userId: UUID, deviceId: UUID) = tx { connection ->
+        val device = connection.prepareStatement(
+            """SELECT d.* FROM devices d
+               WHERE d.id=? AND EXISTS(
+                   SELECT 1 FROM plants p
+                   WHERE p.id=d.plant_id AND p.user_id=? AND p.archived_at IS NULL
+               ) FOR UPDATE""",
+        ).use { statement ->
+            statement.setObject(1, deviceId)
+            statement.setObject(2, userId)
+            statement.executeQuery().use { rows -> if (rows.next()) rows.device() else null }
+        } ?: return@tx null
+        connection.prepareStatement(
+            """UPDATE devices
+               SET anomaly_window_started_at=NULL, quota_breached_windows=0,
+                   last_breached_quota_window_at=NULL, quarantined_at=NULL,
+                   quarantine_until=NULL
+               WHERE id=?""",
+        ).use { statement ->
+            statement.setObject(1, deviceId)
+            check(statement.executeUpdate() == 1)
+        }
+        device
+    }
 
     private fun ownedDeviceUpdate(userId: UUID, deviceId: UUID, set: String, vararg values: Any) = tx { c ->
         c.prepareStatement("UPDATE devices d SET $set WHERE d.id=? AND EXISTS(SELECT 1 FROM plants p WHERE p.id=d.plant_id AND p.user_id=? AND p.archived_at IS NULL) RETURNING d.*").use { ps ->

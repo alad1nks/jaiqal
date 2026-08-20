@@ -1,6 +1,7 @@
 *.iml
 .kotlin
 .gradle
+.cache/trivy/
 **/build/
 xcuserdata
 !src/**/build/
@@ -24,6 +25,7 @@ firebase-service-account*.json
 application_default_credentials.json
 *.pem
 *.key
+*.credentials
 app/iosApp/Configuration/Local.xcconfig
 app/androidApp/google-services.json
 app/iosApp/iosApp/GoogleService-Info.plist

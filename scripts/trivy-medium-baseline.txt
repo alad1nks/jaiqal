@@ -1,0 +1,4 @@
+# Reviewed Trivy Medium findings for server/build/install/server.
+# Format: vulnerability-id|package|installed-version (sorted, exact matches only).
+# Additions require dependency-owner review; disappeared findings may be removed.
+# Trivy 0.74.0 with databases refreshed 2026-08-16 reported zero Medium findings.

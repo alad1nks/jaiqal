@@ -1,0 +1,5 @@
+# Merge this field into the reviewed cluster KubeletConfiguration. Do not replace
+# the provider-managed kubelet configuration with this partial reference file.
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+podPidsLimit: 256

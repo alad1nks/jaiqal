@@ -1,0 +1,122 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: jaiqal-server-requires-image-digest
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["deployments"]
+  validations:
+    - expression: >-
+        object.spec.template.spec.containers.all(c,
+        !c.image.startsWith('ghcr.io/alad1nks/jaiqal-server') ||
+        c.image.matches('^ghcr\\.io/alad1nks/jaiqal-server@sha256:[0-9a-f]{64}$')) &&
+        (!has(object.spec.template.spec.initContainers) ||
+        object.spec.template.spec.initContainers.all(c,
+        !c.image.startsWith('ghcr.io/alad1nks/jaiqal-server') ||
+        c.image.matches('^ghcr\\.io/alad1nks/jaiqal-server@sha256:[0-9a-f]{64}$')))
+      message: every Jaiqal server image must use an immutable SHA-256 digest from the approved GHCR repository
+    - expression: >-
+        object.metadata.name != 'jaiqal-server' ||
+        object.spec.template.spec.containers.exists(c,
+        c.name == 'server' &&
+        c.image.matches('^ghcr\\.io/alad1nks/jaiqal-server@sha256:[0-9a-f]{64}$'))
+      message: jaiqal-server must contain the digest-pinned server container from the approved GHCR repository
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: jaiqal-server-requires-image-digest
+spec:
+  policyName: jaiqal-server-requires-image-digest
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: jaiqal-production
+---
+apiVersion: policy.sigstore.dev/v1beta1
+kind: ClusterImagePolicy
+metadata:
+  name: jaiqal-server-signature
+spec:
+  images:
+    - glob: ghcr.io/alad1nks/jaiqal-server**
+  authorities:
+    - name: production-workflow-signature
+      keyless:
+        identities:
+          - issuer: https://token.actions.githubusercontent.com
+            subject: https://github.com/alad1nks/jaiqal/.github/workflows/publish-production-image.yml@refs/heads/main
+---
+apiVersion: policy.sigstore.dev/v1beta1
+kind: ClusterImagePolicy
+metadata:
+  name: jaiqal-server-provenance
+spec:
+  images:
+    - glob: ghcr.io/alad1nks/jaiqal-server**
+  authorities:
+    - name: production-workflow-provenance
+      keyless:
+        identities:
+          - issuer: https://token.actions.githubusercontent.com
+            subject: https://github.com/alad1nks/jaiqal/.github/workflows/publish-production-image.yml@refs/heads/main
+      attestations:
+        - name: slsa-v1-provenance
+          predicateType: https://slsa.dev/provenance/v1
+          policy:
+            type: cue
+            data: |
+              predicateType: "https://slsa.dev/provenance/v1"
+              predicate: {
+                buildDefinition: {
+                  buildType: "https://github.com/Attestations/GitHubActionsWorkflow@v1"
+                  externalParameters: {
+                    workflow: {
+                      repository: "https://github.com/alad1nks/jaiqal"
+                      path: ".github/workflows/publish-production-image.yml"
+                      ref: "refs/heads/main"
+                    }
+                  }
+                  resolvedDependencies: [{
+                    uri: "git+https://github.com/alad1nks/jaiqal"
+                    digest: gitCommit: =~"^[0-9a-f]{40}$"
+                  }]
+                }
+                runDetails: {
+                  builder: {
+                    id: "https://github.com/actions/runner/github-hosted"
+                  }
+                }
+              }
+---
+apiVersion: policy.sigstore.dev/v1beta1
+kind: ClusterImagePolicy
+metadata:
+  name: jaiqal-server-cyclonedx-sbom
+spec:
+  images:
+    - glob: ghcr.io/alad1nks/jaiqal-server**
+  authorities:
+    - name: production-workflow-sbom
+      keyless:
+        identities:
+          - issuer: https://token.actions.githubusercontent.com
+            subject: https://github.com/alad1nks/jaiqal/.github/workflows/publish-production-image.yml@refs/heads/main
+      attestations:
+        - name: cyclonedx-sbom
+          predicateType: https://cyclonedx.org/bom
+          policy:
+            type: cue
+            data: |
+              predicateType: "https://cyclonedx.org/bom"
+              predicate: {
+                bomFormat: "CycloneDX"
+                specVersion: =~"^1\\.[0-9]+$"
+                components: [...]
+              }

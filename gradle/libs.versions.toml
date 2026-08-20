@@ -19,12 +19,19 @@ kotlinx-datetime = "0.7.1"
 ktor = "3.5.1"
 logback = "1.6.0"
 material3 = "1.11.0-alpha07"
-postgresql = "42.7.10"
+postgresql = "42.7.13"
 hikari = "7.0.2"
 flyway = "11.13.2"
 exposed = "1.0.0"
 firebase-admin = "9.10.0"
 testcontainers = "1.21.3"
+jackson-security = "2.21.5"
+netty-security = "4.2.16.Final"
+httpclient5-security = "5.6.3"
+httpcore5-security = "5.4.3"
+opentelemetry-security = "1.62.0"
+google-oauth-client-compatibility = "1.39.0"
+google-http-client-compatibility = "2.1.0"
 navigation = "2.9.2"
 sqldelight = "2.3.2"
 koin = "4.2.2"
@@ -57,12 +64,14 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinx-datetime" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
 ktor-serverAuth = { module = "io.ktor:ktor-server-auth-jvm", version.ref = "ktor" }
+ktor-serverBodyLimit = { module = "io.ktor:ktor-server-body-limit-jvm", version.ref = "ktor" }
 ktor-serverCallId = { module = "io.ktor:ktor-server-call-id-jvm", version.ref = "ktor" }
 ktor-serverCallLogging = { module = "io.ktor:ktor-server-call-logging-jvm", version.ref = "ktor" }
 ktor-serverContentNegotiation = { module = "io.ktor:ktor-server-content-negotiation-jvm", version.ref = "ktor" }
 ktor-serverCors = { module = "io.ktor:ktor-server-cors-jvm", version.ref = "ktor" }
 ktor-serverCore = { module = "io.ktor:ktor-server-core-jvm", version.ref = "ktor" }
 ktor-serverNetty = { module = "io.ktor:ktor-server-netty-jvm", version.ref = "ktor" }
+ktor-serverRateLimit = { module = "io.ktor:ktor-server-rate-limit-jvm", version.ref = "ktor" }
 ktor-serverStatusPages = { module = "io.ktor:ktor-server-status-pages-jvm", version.ref = "ktor" }
 ktor-serverTestHost = { module = "io.ktor:ktor-server-test-host-jvm", version.ref = "ktor" }
 ktor-serializationKotlinxJson = { module = "io.ktor:ktor-serialization-kotlinx-json-jvm", version.ref = "ktor" }
@@ -76,6 +85,15 @@ exposed-javaTime = { module = "org.jetbrains.exposed:exposed-java-time", version
 exposed-json = { module = "org.jetbrains.exposed:exposed-json", version.ref = "exposed" }
 firebase-admin = { module = "com.google.firebase:firebase-admin", version.ref = "firebase-admin" }
 testcontainers-postgresql = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
+jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson-security" }
+netty-bom = { module = "io.netty:netty-bom", version.ref = "netty-security" }
+httpclient5 = { module = "org.apache.httpcomponents.client5:httpclient5", version.ref = "httpclient5-security" }
+httpcore5 = { module = "org.apache.httpcomponents.core5:httpcore5", version.ref = "httpcore5-security" }
+httpcore5-h2 = { module = "org.apache.httpcomponents.core5:httpcore5-h2", version.ref = "httpcore5-security" }
+opentelemetry-bom = { module = "io.opentelemetry:opentelemetry-bom", version.ref = "opentelemetry-security" }
+google-oauth-client = { module = "com.google.oauth-client:google-oauth-client", version.ref = "google-oauth-client-compatibility" }
+google-http-client-apache-v2 = { module = "com.google.http-client:google-http-client-apache-v2", version.ref = "google-http-client-compatibility" }
+google-http-client-jackson2 = { module = "com.google.http-client:google-http-client-jackson2", version.ref = "google-http-client-compatibility" }
 wrappers-browser = { module = "org.jetbrains.kotlin-wrappers:kotlin-browser", version.ref = "kotlin-wrappers" }
 navigation-compose = { module = "org.jetbrains.androidx.navigation:navigation-compose", version.ref = "navigation" }
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }

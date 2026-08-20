@@ -1,0 +1,188 @@
+name: Publish production image
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-image-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: ghcr.io/alad1nks/jaiqal-server
+  SIGNING_IDENTITY: https://github.com/alad1nks/jaiqal/.github/workflows/publish-production-image.yml@refs/heads/main
+  SIGNING_ISSUER: https://token.actions.githubusercontent.com
+
+jobs:
+  publish:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    environment: production-signing
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+
+    steps:
+      - name: Check out verified source commit
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Bind release to successful CI commit
+        id: source
+        env:
+          VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$VERIFIED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git rev-parse HEAD)" == "$VERIFIED_SHA" ]]
+          echo "sha=$VERIFIED_SHA" >> "$GITHUB_OUTPUT"
+          echo "tag=sha-$VERIFIED_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Verify release and admission controls
+        run: |
+          bash scripts/verify-supply-chain-inputs.sh
+          bash scripts/verify-runtime-policy.sh
+          bash scripts/verify-image-release-policy.sh
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Reject an existing commit tag
+        env:
+          RELEASE_TAG: ${{ steps.source.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if docker buildx imagetools inspect "$IMAGE_NAME:$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Refusing to overwrite existing image tag $IMAGE_NAME:$RELEASE_TAG" >&2
+            exit 1
+          fi
+
+      - name: Build and push production image
+        id: image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          file: server/Dockerfile
+          pull: true
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:${{ steps.source.outputs.tag }}
+          labels: |
+            org.opencontainers.image.revision=${{ steps.source.outputs.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          provenance: false
+          sbom: false
+
+      - name: Validate published digest
+        env:
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: '[[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]'
+
+      - name: Generate CycloneDX SBOM from published digest
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.74.0
+          scan-type: image
+          image-ref: ${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }}
+          scanners: vuln
+          format: cyclonedx
+          output: server-sbom.cdx.json
+          exit-code: "0"
+          timeout: 10m0s
+
+      - name: Scan published digest for High and Critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.74.0
+          skip-setup-trivy: true
+          scan-type: image
+          image-ref: ${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }}
+          scanners: vuln
+          severity: CRITICAL,HIGH
+          ignore-unfixed: "false"
+          format: table
+          exit-code: "1"
+          timeout: 10m0s
+
+      - name: Create SLSA provenance predicate
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          umask 077
+          jq -n \
+            --arg sha "$SOURCE_SHA" \
+            --arg invocation "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}" \
+            '{
+              buildDefinition: {
+                buildType: "https://github.com/Attestations/GitHubActionsWorkflow@v1",
+                externalParameters: {workflow: {
+                  repository: "https://github.com/alad1nks/jaiqal",
+                  path: ".github/workflows/publish-production-image.yml",
+                  ref: "refs/heads/main"
+                }},
+                internalParameters: {github: {eventName: "workflow_run"}},
+                resolvedDependencies: [{
+                  uri: "git+https://github.com/alad1nks/jaiqal",
+                  digest: {gitCommit: $sha}
+                }]
+              },
+              runDetails: {
+                builder: {id: "https://github.com/actions/runner/github-hosted"},
+                metadata: {invocationId: $invocation}
+              }
+            }' > provenance.json
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
+
+      - name: Sign digest and attach signed attestations
+        env:
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          image_ref="$IMAGE_NAME@$IMAGE_DIGEST"
+          cosign sign --yes "$image_ref"
+          cosign attest --yes --type https://slsa.dev/provenance/v1 --predicate provenance.json "$image_ref"
+          cosign attest --yes --type https://cyclonedx.org/bom --predicate server-sbom.cdx.json "$image_ref"
+
+      - name: Verify signature and attestations by exact identity
+        env:
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          image_ref="$IMAGE_NAME@$IMAGE_DIGEST"
+          cosign verify \
+            --certificate-identity "$SIGNING_IDENTITY" \
+            --certificate-oidc-issuer "$SIGNING_ISSUER" \
+            "$image_ref" >/dev/null
+          cosign verify-attestation \
+            --type https://slsa.dev/provenance/v1 \
+            --certificate-identity "$SIGNING_IDENTITY" \
+            --certificate-oidc-issuer "$SIGNING_ISSUER" \
+            "$image_ref" >/dev/null
+          cosign verify-attestation \
+            --type https://cyclonedx.org/bom \
+            --certificate-identity "$SIGNING_IDENTITY" \
+            --certificate-oidc-issuer "$SIGNING_ISSUER" \
+            "$image_ref" >/dev/null
+          echo "Deploy only: $image_ref"

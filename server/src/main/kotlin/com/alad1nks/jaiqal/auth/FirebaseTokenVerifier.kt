@@ -1,9 +1,12 @@
 package com.alad1nks.jaiqal.auth
 
+import java.time.Instant
+
 data class VerifiedFirebaseToken(
     val uid: String,
     val email: String?,
     val emailVerified: Boolean,
+    val expiresAt: Instant,
 ) {
     init {
         require(uid.isNotBlank()) { "Firebase UID must not be blank" }

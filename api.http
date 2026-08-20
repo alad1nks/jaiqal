@@ -8,6 +8,36 @@
 # endpoints are disabled and return 410 Gone without issuing tokens.
 # FIREBASE_AUTO_PROVISION_USERS defaults to true because the project has no
 # pre-existing users. The first valid Firebase token creates an internal user.
+# Oversized bodies return 413/PAYLOAD_TOO_LARGE. Readiness, user API and device
+# telemetry limits return 429/RATE_LIMITED with Retry-After. Defaults are listed
+# in .env.example; production ingress must enforce equivalent per-client limits.
+# Concurrent readiness probes share one DB check for the bounded
+# READINESS_CACHE_TTL_MILLISECONDS window (default 1000 ms, maximum 5000 ms).
+# Authenticated device uploads additionally share a PostgreSQL-backed per-device
+# measurement quota; quota rejection writes no measurements.
+# Measurements are hash-partitioned by device. The retention worker removes rows
+# older than TELEMETRY_RETENTION_DAYS in bounded batches while preserving each
+# device_latest_state row; history outside the retention window is unavailable.
+# Production rejects requests that are not direct HTTPS and do not carry the
+# trusted ingress value X-Forwarded-Proto: https with 426/HTTPS_REQUIRED. The
+# header is accepted only when the direct peer is inside TRUSTED_PROXY_CIDRS;
+# X-Forwarded-For is never trusted for this decision.
+# Production server startup does not run Flyway and rejects MIGRATION_DATABASE_*
+# secrets; apply migrations with the dedicated deployment job before rollout.
+# Production also requires DEPLOYMENT_COMMIT_SHA; /health/live returns the exact
+# value in X-Deployment-Commit for rollout and staging DAST correlation.
+# SSE streams close at Firebase token expiry or the configured maximum lifetime,
+# and also close if periodic ownership checks fail. Reconnect with a fresh token.
+# API strings are checked before persistence: imageUrl must be credential-free
+# HTTPS, claimCode is 32 lowercase hex characters, firmwareVersion is at most 100
+# characters, and alert-rules accepts at most four unique public alert types.
+# Claim, token rotation, calibration, alert-rule/acknowledgement changes and
+# authentication/rate-limit rejections emit SECURITY_AUDIT without credentials,
+# Firebase identifiers, email or request bodies; requestId provides correlation.
+# The operator provisioning task no longer prints deviceToken/claimCode: it
+# requires PROVISIONING_CONFIRM and writes them to DEVICE_CREDENTIALS_FILE (0600).
+# User/device API responses, including errors, carry Cache-Control: no-store,
+# Pragma: no-cache, X-Content-Type-Options: nosniff and Referrer-Policy: no-referrer.
 
 ### Liveness
 GET {{baseUrl}}/health/live
@@ -45,6 +75,10 @@ Content-Type: application/json
 
 {"claimCode":"{{claimCode}}","plantId":"{{plantId}}"}
 
+### Manually restore an owned device from temporary anomaly quarantine
+POST {{baseUrl}}/api/v1/devices/{{deviceId}}/restore
+Authorization: Bearer {{firebaseIdToken}}
+
 ### Upload telemetry (device identity comes only from the token)
 POST {{baseUrl}}/api/device/v1/measurements
 Authorization: Device {{deviceToken}}
@@ -59,6 +93,11 @@ Authorization: Bearer {{firebaseIdToken}}
 ### Hourly history
 GET {{baseUrl}}/api/v1/plants/{{plantId}}/history?interval=1h
 Authorization: Bearer {{firebaseIdToken}}
+
+### Live telemetry stream (SSE; reconnect with a fresh token after closure)
+GET {{baseUrl}}/api/v1/plants/{{plantId}}/stream
+Authorization: Bearer {{firebaseIdToken}}
+Accept: text/event-stream
 
 ### Alert rules
 PUT {{baseUrl}}/api/v1/plants/{{plantId}}/alert-rules

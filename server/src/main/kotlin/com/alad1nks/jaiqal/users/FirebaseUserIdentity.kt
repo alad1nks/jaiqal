@@ -1,6 +1,11 @@
 package com.alad1nks.jaiqal.users
 
 import com.alad1nks.jaiqal.auth.VerifiedFirebaseToken
+import com.alad1nks.jaiqal.infrastructure.security.SecurityAuditAction
+import com.alad1nks.jaiqal.infrastructure.security.SecurityAuditEvent
+import com.alad1nks.jaiqal.infrastructure.security.SecurityAuditResult
+import com.alad1nks.jaiqal.infrastructure.security.SecurityAuditTarget
+import com.alad1nks.jaiqal.infrastructure.security.SecurityAuditTrail
 import java.time.Clock
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -31,10 +36,14 @@ class FirebaseUserIdentityService(
     private val store: UserIdentityStore,
     private val autoProvisionUsers: Boolean,
     private val clock: Clock = Clock.systemUTC(),
+    private val securityAuditTrail: SecurityAuditTrail = SecurityAuditTrail.logging(),
 ) {
-    fun resolve(token: VerifiedFirebaseToken): UserRecord {
+    fun resolve(token: VerifiedFirebaseToken, requestId: String? = null): UserRecord {
         store.findUserByIdentity(FIREBASE_IDENTITY_PROVIDER, token.uid)?.let { return it }
-        if (!autoProvisionUsers) throw UnknownFirebaseIdentityException()
+        if (!autoProvisionUsers) {
+            recordProvisioning(SecurityAuditResult.REJECTED, requestId = requestId)
+            throw UnknownFirebaseIdentityException()
+        }
 
         val createdAt = OffsetDateTime.now(clock)
         val user = UserRecord(
@@ -50,8 +59,30 @@ class FirebaseUserIdentityService(
             externalSubject = token.uid,
             createdAt = createdAt,
         )
-        return store.createUserWithIdentity(user, identity)
+        return try {
+            store.createUserWithIdentity(user, identity).also { resolved ->
+                recordProvisioning(SecurityAuditResult.SUCCESS, resolved.id, requestId)
+            }
+        } catch (exception: FirebaseIdentityConflictException) {
+            recordProvisioning(SecurityAuditResult.FAILURE, requestId = requestId)
+            throw exception
+        } catch (exception: Exception) {
+            recordProvisioning(SecurityAuditResult.FAILURE, requestId = requestId)
+            throw exception
+        }
     }
+
+    private fun recordProvisioning(result: SecurityAuditResult, userId: UUID? = null, requestId: String?) =
+        securityAuditTrail.record(
+            SecurityAuditEvent(
+                action = SecurityAuditAction.PROVISION_USER,
+                result = result,
+                target = SecurityAuditTarget.USER_API,
+                actorUserId = userId,
+                resourceId = userId,
+                requestId = requestId,
+            ),
+        )
 }
 
 class UnknownFirebaseIdentityException : RuntimeException(

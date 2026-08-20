@@ -1,0 +1,13 @@
+# Security-critical changes require an explicit review from the repository owner.
+/.github/CODEOWNERS @alad1nks
+/.github/workflows/ @alad1nks
+/.github/dependabot.yml @alad1nks
+/server/src/main/kotlin/com/alad1nks/jaiqal/auth/ @alad1nks
+/server/src/main/kotlin/com/alad1nks/jaiqal/infrastructure/security/ @alad1nks
+/server/src/main/kotlin/com/alad1nks/jaiqal/plugins/Authentication.kt @alad1nks
+/server/src/main/resources/db/migration/ @alad1nks
+/deploy/ @alad1nks
+/scripts/ @alad1nks
+/docs/security*.md @alad1nks
+/server/Dockerfile @alad1nks
+/gradle/verification-metadata.xml @alad1nks

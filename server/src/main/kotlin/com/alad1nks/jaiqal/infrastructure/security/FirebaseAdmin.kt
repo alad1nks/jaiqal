@@ -12,6 +12,7 @@ import com.google.firebase.auth.FirebaseAuthException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.time.Instant
 
 class FirebaseAdminTokenVerifier(
     private val firebaseAuth: FirebaseAuth,
@@ -26,13 +27,20 @@ class FirebaseAdminTokenVerifier(
         } catch (failure: IllegalArgumentException) {
             throw FirebaseTokenVerificationException(failure)
         }
+        val expiresAt = firebaseTokenExpiration(decoded.claims)
         VerifiedFirebaseToken(
             uid = decoded.uid,
             email = decoded.email,
             emailVerified = decoded.isEmailVerified,
+            expiresAt = expiresAt,
         )
     }
 }
+
+internal fun firebaseTokenExpiration(claims: Map<String, Any>): Instant =
+    (claims["exp"] as? Number)?.toLong()?.let { epochSeconds ->
+        runCatching { Instant.ofEpochSecond(epochSeconds) }.getOrNull()
+    } ?: throw FirebaseTokenVerificationException()
 
 internal class FirebaseAdminInitializer(
     private val factory: (FirebaseConfig) -> FirebaseTokenVerifier,

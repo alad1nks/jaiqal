@@ -1,0 +1,83 @@
+apiVersion: observability.jaiqal.io/v1alpha1
+kind: SecurityObservabilityPolicy
+metadata:
+  name: jaiqal-production-security
+spec:
+  schemaVersion: 1
+  ingestion:
+    source: kubernetes-stdout
+    messageEncoding: json
+    eventTypes:
+      - SECURITY_AUDIT
+      - SECURITY_CAPACITY_ALERT
+  storage:
+    appendOnly: true
+    immutableRetention: true
+    retentionDays: 365
+    writerCanRead: false
+    readerGroups:
+      - security-incident-response
+    exportRequiresApproval: true
+    exportAuditLog: true
+  correlation:
+    field: requestId
+    pattern: '^[A-Za-z0-9._-]{1,128}$'
+  forbiddenFields:
+    - authorization
+    - rawToken
+    - claimCode
+    - firebaseUid
+    - email
+    - requestBody
+  alerts:
+    - id: authentication-rejection-burst
+      eventType: SECURITY_AUDIT
+      action: AUTHENTICATION
+      results: [REJECTED]
+      threshold: 20
+      windowSeconds: 300
+      deduplicationSeconds: 900
+    - id: rate-limit-burst
+      eventType: SECURITY_AUDIT
+      action: RATE_LIMIT
+      results: [REJECTED]
+      threshold: 20
+      windowSeconds: 300
+      deduplicationSeconds: 900
+    - id: device-quarantine-transition
+      eventType: SECURITY_AUDIT
+      action: QUARANTINE_DEVICE
+      results: [SUCCESS]
+      threshold: 1
+      windowSeconds: 60
+      deduplicationSeconds: 3600
+    - id: user-provisioning-anomaly
+      eventType: SECURITY_AUDIT
+      action: PROVISION_USER
+      results: [REJECTED, FAILURE]
+      threshold: 1
+      windowSeconds: 300
+      deduplicationSeconds: 900
+    - id: database-capacity-threshold
+      eventType: SECURITY_CAPACITY_ALERT
+      threshold: 1
+      windowSeconds: 300
+      deduplicationSeconds: 1800
+    - id: audit-delivery-failure
+      signal: collector-export-failures
+      threshold: 1
+      windowSeconds: 300
+      deduplicationSeconds: 900
+  acceptanceTests:
+    generateActions:
+      - AUTHENTICATION
+      - RATE_LIMIT
+      - QUARANTINE_DEVICE
+      - PROVISION_USER
+    generateEventTypes:
+      - SECURITY_AUDIT
+      - SECURITY_CAPACITY_ALERT
+    simulateDeliveryFailure: true
+    verifyEveryAlert: true
+    queryByRequestId: true
+    verifyForbiddenFieldsAbsent: true
