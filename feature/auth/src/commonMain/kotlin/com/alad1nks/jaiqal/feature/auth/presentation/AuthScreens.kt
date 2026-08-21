@@ -230,6 +230,12 @@ private fun AuthErrorText(error: AuthErrorCode) {
         AuthErrorCode.NETWORK -> Res.string.auth_error_network
         AuthErrorCode.NO_CURRENT_USER -> Res.string.auth_error_no_user
         AuthErrorCode.NOT_CONFIGURED -> Res.string.auth_error_not_configured
+        AuthErrorCode.CANCELLED,
+        AuthErrorCode.PROVIDER_UNAVAILABLE,
+        AuthErrorCode.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL,
+        AuthErrorCode.CREDENTIAL_ALREADY_IN_USE,
+        AuthErrorCode.INVALID_NONCE,
+        -> Res.string.auth_error_unknown
         AuthErrorCode.UNKNOWN -> Res.string.auth_error_unknown
     }
     Text(

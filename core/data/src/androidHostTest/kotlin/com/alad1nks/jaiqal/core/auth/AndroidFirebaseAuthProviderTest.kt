@@ -30,9 +30,20 @@ class AndroidFirebaseAuthProviderTest {
         assertNull(bridge.user)
     }
 
+    @Test
+    fun federatedSignInIsForwardedWithoutProviderTokens() = runTest {
+        val bridge = FakeBridge(null)
+        val provider = AndroidFirebaseAuthProvider.fromBridge(bridge)
+
+        provider.signIn(FederatedAuthMethod.GOOGLE)
+
+        assertEquals(FederatedAuthMethod.GOOGLE, bridge.federatedAuthMethod)
+    }
+
     private class FakeBridge(initialUser: AndroidFirebaseUser?) : AndroidFirebaseAuthBridge {
         var user = initialUser
         val tokenRequests = mutableListOf<Boolean>()
+        var federatedAuthMethod: FederatedAuthMethod? = null
 
         override fun addAuthStateListener(listener: (AndroidFirebaseUser?) -> Unit): AndroidAuthStateSubscription {
             listener(user)
@@ -41,6 +52,9 @@ class AndroidFirebaseAuthProviderTest {
 
         override suspend fun signUp(email: String, password: String) = Unit
         override suspend fun signIn(email: String, password: String) = Unit
+        override suspend fun signIn(method: FederatedAuthMethod) {
+            federatedAuthMethod = method
+        }
         override suspend fun sendPasswordReset(email: String) = Unit
         override suspend fun sendEmailVerification() = Unit
         override suspend fun reloadUser() = user

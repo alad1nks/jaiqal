@@ -20,6 +20,7 @@ interface IosFirebaseAuthBridge {
     fun addAuthStateListener(listener: (IosFirebaseUser?) -> Unit): IosAuthStateSubscription
     fun signUp(email: String, password: String, completion: (String?) -> Unit)
     fun signIn(email: String, password: String, completion: (String?) -> Unit)
+    fun signIn(method: FederatedAuthMethod, completion: (String?) -> Unit)
     fun sendPasswordReset(email: String, completion: (String?) -> Unit)
     fun sendEmailVerification(completion: (String?) -> Unit)
     fun reloadUser(completion: (IosFirebaseUser?, String?) -> Unit)
@@ -44,6 +45,10 @@ class IosFirebaseAuthProvider(
 
     override suspend fun signIn(email: String, password: String) = awaitError { completion ->
         bridge.signIn(email, password, completion)
+    }
+
+    override suspend fun signIn(method: FederatedAuthMethod) = awaitError { completion ->
+        bridge.signIn(method, completion)
     }
 
     override suspend fun sendPasswordReset(email: String) = awaitError { completion ->
@@ -104,6 +109,11 @@ private fun String.toAuthException(): AuthException = AuthException(
         "too-many-requests" -> AuthErrorCode.TOO_MANY_REQUESTS
         "network" -> AuthErrorCode.NETWORK
         "no-current-user" -> AuthErrorCode.NO_CURRENT_USER
+        "cancelled" -> AuthErrorCode.CANCELLED
+        "provider-unavailable" -> AuthErrorCode.PROVIDER_UNAVAILABLE
+        "account-exists-with-different-credential" -> AuthErrorCode.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL
+        "credential-already-in-use" -> AuthErrorCode.CREDENTIAL_ALREADY_IN_USE
+        "invalid-nonce" -> AuthErrorCode.INVALID_NONCE
         else -> AuthErrorCode.UNKNOWN
     },
 )

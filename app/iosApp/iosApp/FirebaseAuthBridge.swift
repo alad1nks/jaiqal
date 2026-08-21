@@ -33,6 +33,10 @@ final class AppleFirebaseAuthBridge: NSObject, IosFirebaseAuthBridge {
         }
     }
 
+    func signIn(method: FederatedAuthMethod, completion: @escaping (String?) -> Void) {
+        completion("provider-unavailable")
+    }
+
     func sendPasswordReset(email: String, completion: @escaping (String?) -> Void) {
         Auth.auth().sendPasswordReset(withEmail: email) { error in
             completion(Self.stableErrorCode(error))
@@ -100,6 +104,10 @@ final class AppleFirebaseAuthBridge: NSObject, IosFirebaseAuthBridge {
             return "too-many-requests"
         case .networkError:
             return "network"
+        case .accountExistsWithDifferentCredential:
+            return "account-exists-with-different-credential"
+        case .credentialAlreadyInUse:
+            return "credential-already-in-use"
         default:
             return "unknown"
         }
