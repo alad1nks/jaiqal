@@ -1,5 +1,6 @@
 package com.alad1nks.jaiqal.di
 
+import android.app.Activity
 import android.content.Context
 import com.alad1nks.jaiqal.core.auth.AndroidFirebaseAuthProvider
 import com.alad1nks.jaiqal.core.auth.AuthProvider
@@ -17,7 +18,7 @@ import com.alad1nks.jaiqal.core.config.AppInfo
 import com.alad1nks.jaiqal.createAndroidCrashReporter
 
 fun createAndroidAppConfiguration(
-    context: Context,
+    activity: Activity,
     backendBaseUrl: String,
     environmentName: String,
     enableNetworkLogging: Boolean,
@@ -25,9 +26,10 @@ fun createAndroidAppConfiguration(
     isDebug: Boolean,
     privacyPolicyUrl: String?,
 ): AppBootstrap {
+    val context = activity.applicationContext
     AndroidAppContext.value = context.applicationContext
     val backendConfig = DefaultBackendConfig(AppEnvironment.from(environmentName), backendBaseUrl)
-    val authProvider = createAndroidAuthProvider(context)
+    val authProvider = createAndroidAuthProvider(activity)
     val firebaseConfigured = FirebaseApp.getApps(context).isNotEmpty()
     val httpClient = createApiHttpClient(
         engine = OkHttp,
@@ -44,9 +46,22 @@ fun createAndroidAppConfiguration(
     )
 }
 
-private fun createAndroidAuthProvider(context: Context): AuthProvider {
+private fun createAndroidAuthProvider(activity: Activity): AuthProvider {
+    val context = activity.applicationContext
     val initialized = runCatching {
         FirebaseApp.initializeApp(context) ?: FirebaseApp.getApps(context).firstOrNull()
     }.getOrNull() ?: return UnavailableAuthProvider()
-    return AndroidFirebaseAuthProvider(FirebaseAuth.getInstance(initialized))
+    return AndroidFirebaseAuthProvider(
+        firebaseAuth = FirebaseAuth.getInstance(initialized),
+        context = context,
+        activity = activity,
+        googleServerClientId = context.firebaseStringResource("default_web_client_id"),
+    )
+}
+
+@Suppress("DiscouragedApi")
+private fun Context.firebaseStringResource(name: String): String? {
+    val resourceId = resources.getIdentifier(name, "string", packageName)
+    if (resourceId == 0) return null
+    return runCatching { resources.getString(resourceId) }.getOrNull()?.takeIf(String::isNotBlank)
 }

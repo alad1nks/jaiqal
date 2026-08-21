@@ -14,7 +14,7 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         val configuration = createAndroidAppConfiguration(
-            context = applicationContext,
+            activity = this,
             backendBaseUrl = BuildConfig.API_BASE_URL,
             environmentName = BuildConfig.APP_ENVIRONMENT,
             enableNetworkLogging = BuildConfig.DEBUG,
