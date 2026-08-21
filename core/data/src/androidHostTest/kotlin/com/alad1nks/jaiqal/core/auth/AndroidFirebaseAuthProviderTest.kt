@@ -10,6 +10,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 
 class AndroidFirebaseAuthProviderTest {
@@ -133,6 +135,69 @@ class AndroidFirebaseAuthProviderTest {
         )
     }
 
+    @Test
+    fun appleSignInCompletesPendingResultBeforeStartingNewFlow() = runTest {
+        val client = FakeAppleAuthClient(pendingResultAvailable = true)
+        val coordinator = AndroidAppleSignInCoordinator(client)
+
+        coordinator.signIn()
+
+        assertEquals(1, client.pendingChecks)
+        assertEquals(0, client.startedFlows)
+    }
+
+    @Test
+    fun appleSignInStartsNewFlowWhenThereIsNoPendingResult() = runTest {
+        val client = FakeAppleAuthClient(pendingResultAvailable = false)
+        val coordinator = AndroidAppleSignInCoordinator(client)
+
+        coordinator.signIn()
+
+        assertEquals(1, client.pendingChecks)
+        assertEquals(1, client.startedFlows)
+    }
+
+    @Test
+    fun concurrentAppleSignInCallsShareSingleFlow() = runTest {
+        val flowMayFinish = CompletableDeferred<Unit>()
+        val flowStarted = CompletableDeferred<Unit>()
+        val client = FakeAppleAuthClient(
+            pendingResultAvailable = false,
+            startAction = {
+                flowStarted.complete(Unit)
+                flowMayFinish.await()
+            },
+        )
+        val coordinator = AndroidAppleSignInCoordinator(client)
+
+        val first = async { coordinator.signIn() }
+        flowStarted.await()
+        val second = async { coordinator.signIn() }
+        flowMayFinish.complete(Unit)
+        first.await()
+        second.await()
+
+        assertEquals(1, client.pendingChecks)
+        assertEquals(1, client.startedFlows)
+    }
+
+    @Test
+    fun appleWebErrorsMapToStableAuthErrors() {
+        val mappings = mapOf(
+            "ERROR_WEB_CONTEXT_CANCELED" to AuthErrorCode.CANCELLED,
+            "ERROR_WEB_CONTEXT_ALREADY_PRESENTED" to AuthErrorCode.PROVIDER_UNAVAILABLE,
+            "ERROR_WEB_STORAGE_UNSUPPORTED" to AuthErrorCode.PROVIDER_UNAVAILABLE,
+            "ERROR_WEB_INTERNAL_ERROR" to AuthErrorCode.UNKNOWN,
+            "ERROR_ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL" to
+                AuthErrorCode.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL,
+            "ERROR_CREDENTIAL_ALREADY_IN_USE" to AuthErrorCode.CREDENTIAL_ALREADY_IN_USE,
+        )
+
+        mappings.forEach { (errorCode, expected) ->
+            assertEquals(expected, mapFirebaseAuthError(errorCode))
+        }
+    }
+
     private class FakeBridge(initialUser: AndroidFirebaseUser?) : AndroidFirebaseAuthBridge {
         var user = initialUser
         val tokenRequests = mutableListOf<Boolean>()
@@ -174,6 +239,24 @@ class AndroidFirebaseAuthProviderTest {
 
         override suspend fun signIn(idToken: String) {
             idTokens += idToken
+        }
+    }
+
+    private class FakeAppleAuthClient(
+        private var pendingResultAvailable: Boolean,
+        private val startAction: suspend () -> Unit = {},
+    ) : AndroidAppleAuthClient {
+        var pendingChecks = 0
+        var startedFlows = 0
+
+        override suspend fun completePendingSignIn(): Boolean {
+            pendingChecks += 1
+            return pendingResultAvailable.also { pendingResultAvailable = false }
+        }
+
+        override suspend fun startSignIn() {
+            startedFlows += 1
+            startAction()
         }
     }
 }

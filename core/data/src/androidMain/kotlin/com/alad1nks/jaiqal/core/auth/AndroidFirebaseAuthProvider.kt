@@ -16,13 +16,16 @@ import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
 import com.google.firebase.FirebaseNetworkException
+import com.google.firebase.auth.AuthResult
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.OAuthProvider
 import java.lang.ref.WeakReference
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -63,6 +66,46 @@ internal class AndroidGoogleSignInCoordinator(
     }
 }
 
+internal interface AndroidAppleAuthClient {
+    suspend fun completePendingSignIn(): Boolean
+    suspend fun startSignIn()
+}
+
+internal class AndroidAppleSignInCoordinator(
+    private val client: AndroidAppleAuthClient,
+) {
+    private val operationLock = Any()
+    private var activeOperation: CompletableDeferred<Unit>? = null
+
+    suspend fun signIn() {
+        var ownsOperation = false
+        val operation = synchronized(operationLock) {
+            activeOperation ?: CompletableDeferred<Unit>().also {
+                activeOperation = it
+                ownsOperation = true
+            }
+        }
+        if (!ownsOperation) {
+            operation.await()
+            return
+        }
+
+        try {
+            if (!client.completePendingSignIn()) {
+                client.startSignIn()
+            }
+            operation.complete(Unit)
+        } catch (failure: Throwable) {
+            operation.completeExceptionally(failure)
+            throw failure
+        } finally {
+            synchronized(operationLock) {
+                if (activeOperation === operation) activeOperation = null
+            }
+        }
+    }
+}
+
 internal interface AndroidFirebaseAuthBridge {
     fun addAuthStateListener(listener: (AndroidFirebaseUser?) -> Unit): AndroidAuthStateSubscription
     suspend fun signUp(email: String, password: String)
@@ -78,7 +121,13 @@ internal interface AndroidFirebaseAuthBridge {
 class AndroidFirebaseAuthProvider private constructor(
     private val bridge: AndroidFirebaseAuthBridge,
 ) : AuthProvider {
-    constructor(firebaseAuth: FirebaseAuth) : this(FirebaseSdkAuthBridge(firebaseAuth, googleSignIn = null))
+    constructor(firebaseAuth: FirebaseAuth) : this(
+        FirebaseSdkAuthBridge(
+            firebaseAuth = firebaseAuth,
+            googleSignIn = null,
+            appleSignIn = null,
+        ),
+    )
 
     constructor(
         firebaseAuth: FirebaseAuth,
@@ -91,6 +140,7 @@ class AndroidFirebaseAuthProvider private constructor(
             googleSignIn = googleServerClientId?.takeIf(String::isNotBlank)?.let { clientId ->
                 createGoogleSignInCoordinator(firebaseAuth, context, activity, clientId)
             },
+            appleSignIn = createAppleSignInCoordinator(firebaseAuth, activity),
         ),
     )
 
@@ -128,6 +178,7 @@ class AndroidFirebaseAuthProvider private constructor(
 private class FirebaseSdkAuthBridge(
     private val firebaseAuth: FirebaseAuth,
     private val googleSignIn: AndroidGoogleSignInCoordinator?,
+    private val appleSignIn: AndroidAppleSignInCoordinator?,
 ) : AndroidFirebaseAuthBridge {
     override fun addAuthStateListener(listener: (AndroidFirebaseUser?) -> Unit): AndroidAuthStateSubscription {
         val sdkListener = FirebaseAuth.AuthStateListener { auth -> listener(auth.currentUser.toBridgeUser()) }
@@ -148,7 +199,8 @@ private class FirebaseSdkAuthBridge(
     override suspend fun signIn(method: FederatedAuthMethod) = when (method) {
         FederatedAuthMethod.GOOGLE -> googleSignIn?.signIn()
             ?: throw AuthException(AuthErrorCode.PROVIDER_UNAVAILABLE)
-        FederatedAuthMethod.APPLE -> throw AuthException(AuthErrorCode.PROVIDER_UNAVAILABLE)
+        FederatedAuthMethod.APPLE -> appleSignIn?.signIn()
+            ?: throw AuthException(AuthErrorCode.PROVIDER_UNAVAILABLE)
     }
 
     override suspend fun sendPasswordReset(email: String) {
@@ -190,6 +242,51 @@ private fun createGoogleSignInCoordinator(
         firebaseAuth.signInWithCredential(credential).awaitResult()
     },
 )
+
+private fun createAppleSignInCoordinator(
+    firebaseAuth: FirebaseAuth,
+    activity: Activity,
+): AndroidAppleSignInCoordinator = AndroidAppleSignInCoordinator(
+    FirebaseAppleAuthClient(firebaseAuth, activity),
+)
+
+private class FirebaseAppleAuthClient(
+    private val firebaseAuth: FirebaseAuth,
+    activity: Activity,
+) : AndroidAppleAuthClient {
+    private val activityReference = WeakReference(activity)
+    private var pendingResult = firebaseAuth.pendingAuthResult
+    private var startedResult: Task<AuthResult>? = null
+
+    override suspend fun completePendingSignIn(): Boolean {
+        val result = pendingResult ?: startedResult ?: return false
+        try {
+            result.awaitResult()
+        } finally {
+            if (result.isComplete) {
+                if (pendingResult === result) pendingResult = null
+                if (startedResult === result) startedResult = null
+            }
+        }
+        return true
+    }
+
+    override suspend fun startSignIn() {
+        val activity = activityReference.get()
+            ?.takeUnless { it.isFinishing || it.isDestroyed }
+            ?: throw AuthException(AuthErrorCode.PROVIDER_UNAVAILABLE)
+        val provider = OAuthProvider.newBuilder("apple.com")
+            .setScopes(listOf("email", "name"))
+            .build()
+        val result = firebaseAuth.startActivityForSignInWithProvider(activity, provider)
+        startedResult = result
+        try {
+            result.awaitResult()
+        } finally {
+            if (result.isComplete && startedResult === result) startedResult = null
+        }
+    }
+}
 
 private class CredentialManagerGoogleIdTokenSource(
     private val credentialManager: CredentialManager,
@@ -280,6 +377,9 @@ internal fun mapFirebaseAuthError(
     AuthErrorCode.NETWORK
 } else {
     when (errorCode) {
+        "ERROR_WEB_CONTEXT_CANCELED" -> AuthErrorCode.CANCELLED
+        "ERROR_WEB_CONTEXT_ALREADY_PRESENTED", "ERROR_WEB_STORAGE_UNSUPPORTED" ->
+            AuthErrorCode.PROVIDER_UNAVAILABLE
         "ERROR_INVALID_EMAIL" -> AuthErrorCode.INVALID_EMAIL
         "ERROR_INVALID_CREDENTIAL", "ERROR_WRONG_PASSWORD", "ERROR_USER_NOT_FOUND" -> AuthErrorCode.INVALID_CREDENTIALS
         "ERROR_EMAIL_ALREADY_IN_USE" -> AuthErrorCode.EMAIL_ALREADY_IN_USE
