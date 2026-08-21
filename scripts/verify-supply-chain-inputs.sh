@@ -240,7 +240,7 @@ if ! ci_step_has_setting 'Initialize CodeQL for Java and Kotlin' 'uses: github/c
   ! ci_step_has_setting 'Initialize CodeQL for Java and Kotlin' 'languages: java-kotlin' ||
   ! ci_step_has_setting 'Initialize CodeQL for Java and Kotlin' 'build-mode: manual' ||
   ! ci_step_has_setting 'Initialize CodeQL for Java and Kotlin' 'queries: security-extended' ||
-  ! ci_step_has_setting 'Build server classes for CodeQL' 'run: ./gradlew --no-daemon :server:classes' ||
+  ! ci_step_has_setting 'Build server classes for CodeQL' 'run: ./gradlew --no-daemon --no-build-cache --rerun-tasks :server:clean :server:classes' ||
   ! ci_step_has_setting 'Analyze Java and Kotlin' 'uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81'; then
   echo "Pinned fail-closed Java/Kotlin CodeQL analysis is missing" >&2
   failures=$((failures + 1))

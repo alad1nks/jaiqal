@@ -109,7 +109,7 @@ jobs:
           queries: security-extended
 
       - name: Build server classes for CodeQL
-        run: ./gradlew --no-daemon :server:classes
+        run: ./gradlew --no-daemon --no-build-cache --rerun-tasks :server:clean :server:classes
 
       - name: Analyze Java and Kotlin
         uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
