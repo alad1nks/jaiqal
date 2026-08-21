@@ -12,6 +12,11 @@ sealed interface AuthState {
     ) : AuthState
 }
 
+enum class FederatedAuthMethod {
+    GOOGLE,
+    APPLE,
+}
+
 enum class AuthErrorCode {
     INVALID_EMAIL,
     INVALID_CREDENTIALS,
@@ -22,6 +27,11 @@ enum class AuthErrorCode {
     NETWORK,
     NO_CURRENT_USER,
     NOT_CONFIGURED,
+    CANCELLED,
+    PROVIDER_UNAVAILABLE,
+    ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL,
+    CREDENTIAL_ALREADY_IN_USE,
+    INVALID_NONCE,
     UNKNOWN,
 }
 
@@ -35,6 +45,7 @@ interface AuthProvider {
 
     suspend fun signUp(email: String, password: String)
     suspend fun signIn(email: String, password: String)
+    suspend fun signIn(method: FederatedAuthMethod)
     suspend fun sendPasswordReset(email: String)
     suspend fun sendEmailVerification()
     suspend fun reloadUser()
@@ -47,6 +58,7 @@ class UnavailableAuthProvider : AuthProvider {
 
     override suspend fun signUp(email: String, password: String) = unavailable()
     override suspend fun signIn(email: String, password: String) = unavailable()
+    override suspend fun signIn(method: FederatedAuthMethod) = providerUnavailable()
     override suspend fun sendPasswordReset(email: String) = unavailable()
     override suspend fun sendEmailVerification() = unavailable()
     override suspend fun reloadUser() = unavailable()
@@ -54,4 +66,5 @@ class UnavailableAuthProvider : AuthProvider {
     override suspend fun signOut() = Unit
 
     private fun unavailable(): Nothing = throw AuthException(AuthErrorCode.NOT_CONFIGURED)
+    private fun providerUnavailable(): Nothing = throw AuthException(AuthErrorCode.PROVIDER_UNAVAILABLE)
 }

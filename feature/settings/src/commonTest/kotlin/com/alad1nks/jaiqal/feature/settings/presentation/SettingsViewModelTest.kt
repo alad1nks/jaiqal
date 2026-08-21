@@ -4,6 +4,7 @@ import com.alad1nks.jaiqal.core.auth.AuthErrorCode
 import com.alad1nks.jaiqal.core.auth.AuthException
 import com.alad1nks.jaiqal.core.auth.AuthProvider
 import com.alad1nks.jaiqal.core.auth.AuthState
+import com.alad1nks.jaiqal.core.auth.FederatedAuthMethod
 import com.alad1nks.jaiqal.core.auth.UserSessionStore
 import com.alad1nks.jaiqal.core.config.AppInfo
 import com.alad1nks.jaiqal.core.network.AppEnvironment
@@ -75,6 +76,7 @@ class SettingsViewModelTest {
         override suspend fun signOut() = Unit
         override suspend fun signUp(email: String, password: String) = Unit
         override suspend fun signIn(email: String, password: String) = Unit
+        override suspend fun signIn(method: FederatedAuthMethod) = Unit
         override suspend fun sendPasswordReset(email: String) = Unit
         override suspend fun reloadUser() = Unit
         override suspend fun getIdToken(forceRefresh: Boolean): String? = null

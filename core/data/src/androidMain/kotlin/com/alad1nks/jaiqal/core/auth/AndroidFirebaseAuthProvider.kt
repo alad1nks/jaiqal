@@ -22,6 +22,7 @@ internal interface AndroidFirebaseAuthBridge {
     fun addAuthStateListener(listener: (AndroidFirebaseUser?) -> Unit): AndroidAuthStateSubscription
     suspend fun signUp(email: String, password: String)
     suspend fun signIn(email: String, password: String)
+    suspend fun signIn(method: FederatedAuthMethod)
     suspend fun sendPasswordReset(email: String)
     suspend fun sendEmailVerification()
     suspend fun reloadUser(): AndroidFirebaseUser?
@@ -44,6 +45,7 @@ class AndroidFirebaseAuthProvider private constructor(
 
     override suspend fun signUp(email: String, password: String) = bridge.signUp(email, password)
     override suspend fun signIn(email: String, password: String) = bridge.signIn(email, password)
+    override suspend fun signIn(method: FederatedAuthMethod) = bridge.signIn(method)
     override suspend fun sendPasswordReset(email: String) = bridge.sendPasswordReset(email)
     override suspend fun sendEmailVerification() = bridge.sendEmailVerification()
 
@@ -82,6 +84,9 @@ private class FirebaseSdkAuthBridge(
     override suspend fun signIn(email: String, password: String) {
         firebaseAuth.signInWithEmailAndPassword(email, password).awaitResult()
     }
+
+    override suspend fun signIn(method: FederatedAuthMethod): Unit =
+        throw AuthException(AuthErrorCode.PROVIDER_UNAVAILABLE)
 
     override suspend fun sendPasswordReset(email: String) {
         firebaseAuth.sendPasswordResetEmail(email).awaitResult()
@@ -133,6 +138,8 @@ private fun Throwable?.toAuthException(): AuthException {
         "ERROR_USER_DISABLED" -> AuthErrorCode.USER_DISABLED
         "ERROR_TOO_MANY_REQUESTS" -> AuthErrorCode.TOO_MANY_REQUESTS
         "ERROR_NETWORK_REQUEST_FAILED" -> AuthErrorCode.NETWORK
+        "ERROR_ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL" -> AuthErrorCode.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL
+        "ERROR_CREDENTIAL_ALREADY_IN_USE" -> AuthErrorCode.CREDENTIAL_ALREADY_IN_USE
         else -> AuthErrorCode.UNKNOWN
     }
     return AuthException(mapped, this)

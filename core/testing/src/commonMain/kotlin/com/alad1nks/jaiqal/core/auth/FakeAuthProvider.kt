@@ -14,6 +14,7 @@ class FakeAuthProvider(initialState: AuthState = AuthState.Unauthenticated) : Au
     val tokenRequests = mutableListOf<Boolean>()
     var lastEmail: String? = null
     var lastPassword: String? = null
+    var lastFederatedAuthMethod: FederatedAuthMethod? = null
     var verificationEmailsSent: Int = 0
     var resetEmailsSent: Int = 0
 
@@ -28,6 +29,11 @@ class FakeAuthProvider(initialState: AuthState = AuthState.Unauthenticated) : Au
         lastEmail = email
         lastPassword = password
         mutableAuthState.value = AuthState.Authenticated(email, emailVerified = true)
+    }
+
+    override suspend fun signIn(method: FederatedAuthMethod) {
+        lastFederatedAuthMethod = method
+        mutableAuthState.value = AuthState.Authenticated(email = null, emailVerified = true)
     }
 
     override suspend fun sendPasswordReset(email: String) {
