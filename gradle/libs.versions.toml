@@ -36,6 +36,8 @@ navigation = "2.9.2"
 sqldelight = "2.3.2"
 koin = "4.2.2"
 firebase-bom = "34.16.0"
+androidx-credentials = "1.6.0"
+googleid = "1.2.0"
 google-services = "4.5.0"
 firebase-crashlytics-plugin = "3.0.7"
 
@@ -116,6 +118,9 @@ kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-t
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
 firebase-auth = { module = "com.google.firebase:firebase-auth" }
 firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics" }
+androidx-credentials = { module = "androidx.credentials:credentials", version.ref = "androidx-credentials" }
+androidx-credentials-playServicesAuth = { module = "androidx.credentials:credentials-play-services-auth", version.ref = "androidx-credentials" }
+googleid = { module = "com.google.android.libraries.identity.googleid:googleid", version.ref = "googleid" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

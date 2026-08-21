@@ -16,6 +16,7 @@ import com.alad1nks.jaiqal.feature.auth.navigation.AuthGraph
 import com.alad1nks.jaiqal.feature.auth.navigation.VerifyEmailRoute
 import com.alad1nks.jaiqal.applyAppLanguage
 import com.alad1nks.jaiqal.openExternalUrl
+import kotlinx.coroutines.flow.first
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -26,6 +27,9 @@ fun JaiqalApp(
     val appState = rememberJaiqalAppState()
 
     LaunchedEffect(uiState.session) {
+        // NavHost installs the graph during composition. On iOS this effect can
+        // otherwise run before that work completes, and reading graph throws.
+        appState.navController.currentBackStackEntryFlow.first()
         val target = when (uiState.session) {
             SessionState.LOADING -> SplashRoute
             SessionState.UNAUTHENTICATED -> AuthGraph
