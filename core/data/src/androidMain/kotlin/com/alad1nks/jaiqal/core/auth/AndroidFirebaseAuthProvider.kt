@@ -2,6 +2,7 @@ package com.alad1nks.jaiqal.core.auth
 
 import android.app.Activity
 import android.content.Context
+import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.Credential
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
@@ -25,6 +26,7 @@ import com.google.firebase.auth.OAuthProvider
 import java.lang.ref.WeakReference
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -106,6 +108,26 @@ internal class AndroidAppleSignInCoordinator(
     }
 }
 
+internal fun interface AndroidCredentialStateCleaner {
+    suspend fun clear()
+}
+
+internal class AndroidSignOutCoordinator(
+    private val firebaseSignOut: () -> Unit,
+    private val credentialStateCleaner: AndroidCredentialStateCleaner?,
+) {
+    suspend fun signOut() {
+        firebaseSignOut()
+        try {
+            credentialStateCleaner?.clear()
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (_: Throwable) {
+            // Firebase is already signed out. Credential state cleanup is best-effort and carries no user data.
+        }
+    }
+}
+
 internal interface AndroidFirebaseAuthBridge {
     fun addAuthStateListener(listener: (AndroidFirebaseUser?) -> Unit): AndroidAuthStateSubscription
     suspend fun signUp(email: String, password: String)
@@ -115,7 +137,7 @@ internal interface AndroidFirebaseAuthBridge {
     suspend fun sendEmailVerification()
     suspend fun reloadUser(): AndroidFirebaseUser?
     suspend fun getIdToken(forceRefresh: Boolean): String?
-    fun signOut()
+    suspend fun signOut()
 }
 
 class AndroidFirebaseAuthProvider private constructor(
@@ -126,6 +148,7 @@ class AndroidFirebaseAuthProvider private constructor(
             firebaseAuth = firebaseAuth,
             googleSignIn = null,
             appleSignIn = null,
+            credentialStateCleaner = null,
         ),
     )
 
@@ -134,15 +157,7 @@ class AndroidFirebaseAuthProvider private constructor(
         context: Context,
         activity: Activity,
         googleServerClientId: String?,
-    ) : this(
-        FirebaseSdkAuthBridge(
-            firebaseAuth = firebaseAuth,
-            googleSignIn = googleServerClientId?.takeIf(String::isNotBlank)?.let { clientId ->
-                createGoogleSignInCoordinator(firebaseAuth, context, activity, clientId)
-            },
-            appleSignIn = createAppleSignInCoordinator(firebaseAuth, activity),
-        ),
-    )
+    ) : this(createFirebaseSdkAuthBridge(firebaseAuth, context, activity, googleServerClientId))
 
     private val mutableAuthState = MutableStateFlow<AuthState>(AuthState.Loading)
     override val authState: StateFlow<AuthState> = mutableAuthState.asStateFlow()
@@ -165,8 +180,11 @@ class AndroidFirebaseAuthProvider private constructor(
     override suspend fun getIdToken(forceRefresh: Boolean): String? = bridge.getIdToken(forceRefresh)
 
     override suspend fun signOut() {
-        bridge.signOut()
-        mutableAuthState.value = AuthState.Unauthenticated
+        try {
+            bridge.signOut()
+        } finally {
+            mutableAuthState.value = AuthState.Unauthenticated
+        }
     }
 
     internal companion object {
@@ -179,7 +197,13 @@ private class FirebaseSdkAuthBridge(
     private val firebaseAuth: FirebaseAuth,
     private val googleSignIn: AndroidGoogleSignInCoordinator?,
     private val appleSignIn: AndroidAppleSignInCoordinator?,
+    credentialStateCleaner: AndroidCredentialStateCleaner?,
 ) : AndroidFirebaseAuthBridge {
+    private val signOutCoordinator = AndroidSignOutCoordinator(
+        firebaseSignOut = firebaseAuth::signOut,
+        credentialStateCleaner = credentialStateCleaner,
+    )
+
     override fun addAuthStateListener(listener: (AndroidFirebaseUser?) -> Unit): AndroidAuthStateSubscription {
         val sdkListener = FirebaseAuth.AuthStateListener { auth -> listener(auth.currentUser.toBridgeUser()) }
         firebaseAuth.addAuthStateListener(sdkListener)
@@ -223,17 +247,36 @@ private class FirebaseSdkAuthBridge(
         return user.getIdToken(forceRefresh).awaitResult().token
     }
 
-    override fun signOut() = firebaseAuth.signOut()
+    override suspend fun signOut() = signOutCoordinator.signOut()
+}
+
+private fun createFirebaseSdkAuthBridge(
+    firebaseAuth: FirebaseAuth,
+    context: Context,
+    activity: Activity,
+    googleServerClientId: String?,
+): AndroidFirebaseAuthBridge {
+    val credentialManager = CredentialManager.create(context.applicationContext)
+    return FirebaseSdkAuthBridge(
+        firebaseAuth = firebaseAuth,
+        googleSignIn = googleServerClientId?.takeIf(String::isNotBlank)?.let { clientId ->
+            createGoogleSignInCoordinator(firebaseAuth, credentialManager, activity, clientId)
+        },
+        appleSignIn = createAppleSignInCoordinator(firebaseAuth, activity),
+        credentialStateCleaner = AndroidCredentialStateCleaner {
+            credentialManager.clearCredentialState(ClearCredentialStateRequest())
+        },
+    )
 }
 
 private fun createGoogleSignInCoordinator(
     firebaseAuth: FirebaseAuth,
-    context: Context,
+    credentialManager: CredentialManager,
     activity: Activity,
     googleServerClientId: String,
 ): AndroidGoogleSignInCoordinator = AndroidGoogleSignInCoordinator(
     idTokenSource = CredentialManagerGoogleIdTokenSource(
-        credentialManager = CredentialManager.create(context.applicationContext),
+        credentialManager = credentialManager,
         activity = activity,
         googleServerClientId = googleServerClientId,
     ),

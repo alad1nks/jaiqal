@@ -10,6 +10,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
@@ -198,10 +199,50 @@ class AndroidFirebaseAuthProviderTest {
         }
     }
 
+    @Test
+    fun signOutClearsFirebaseBeforeCredentialManagerState() = runTest {
+        val calls = mutableListOf<String>()
+        val coordinator = AndroidSignOutCoordinator(
+            firebaseSignOut = { calls += "firebase" },
+            credentialStateCleaner = AndroidCredentialStateCleaner { calls += "credentials" },
+        )
+
+        coordinator.signOut()
+
+        assertEquals(listOf("firebase", "credentials"), calls)
+    }
+
+    @Test
+    fun credentialStateCleanupFailureDoesNotRestoreFirebaseSession() = runTest {
+        var firebaseSignedOut = false
+        val coordinator = AndroidSignOutCoordinator(
+            firebaseSignOut = { firebaseSignedOut = true },
+            credentialStateCleaner = AndroidCredentialStateCleaner { error("provider unavailable") },
+        )
+
+        coordinator.signOut()
+
+        assertEquals(true, firebaseSignedOut)
+    }
+
+    @Test
+    fun cancelledCredentialCleanupStillPublishesUnauthenticatedState() = runTest {
+        val bridge = FakeBridge(AndroidFirebaseUser("owner@example.com", emailVerified = true)).apply {
+            signOutFailure = CancellationException("cancelled")
+        }
+        val provider = AndroidFirebaseAuthProvider.fromBridge(bridge)
+
+        assertFailsWith<CancellationException> { provider.signOut() }
+
+        assertEquals(AuthState.Unauthenticated, provider.authState.value)
+        assertNull(bridge.user)
+    }
+
     private class FakeBridge(initialUser: AndroidFirebaseUser?) : AndroidFirebaseAuthBridge {
         var user = initialUser
         val tokenRequests = mutableListOf<Boolean>()
         var federatedAuthMethod: FederatedAuthMethod? = null
+        var signOutFailure: Throwable? = null
 
         override fun addAuthStateListener(listener: (AndroidFirebaseUser?) -> Unit): AndroidAuthStateSubscription {
             listener(user)
@@ -220,7 +261,10 @@ class AndroidFirebaseAuthProviderTest {
             tokenRequests += forceRefresh
             return if (forceRefresh) "fresh-token" else "cached-token"
         }
-        override fun signOut() { user = null }
+        override suspend fun signOut() {
+            user = null
+            signOutFailure?.let { throw it }
+        }
     }
 
     private class FakeGoogleIdTokenSource(
