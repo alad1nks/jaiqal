@@ -11,6 +11,8 @@ class FakeAuthProvider(initialState: AuthState = AuthState.Unauthenticated) : Au
     var idToken: String? = "fake-id-token"
     var refreshedIdToken: String? = null
     var forceRefreshDelayMillis: Long = 0
+    var federatedSignInDelayMillis: Long = 0
+    var federatedFailure: Throwable? = null
     val tokenRequests = mutableListOf<Boolean>()
     var lastEmail: String? = null
     var lastPassword: String? = null
@@ -33,6 +35,8 @@ class FakeAuthProvider(initialState: AuthState = AuthState.Unauthenticated) : Au
 
     override suspend fun signIn(method: FederatedAuthMethod) {
         lastFederatedAuthMethod = method
+        if (federatedSignInDelayMillis > 0) delay(federatedSignInDelayMillis)
+        federatedFailure?.let { throw it }
         mutableAuthState.value = AuthState.Authenticated(email = null, emailVerified = true)
     }
 

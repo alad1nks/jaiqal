@@ -87,6 +87,27 @@ class AppViewModelTest {
     }
 
     @Test
+    fun verifiedSocialSessionsWithNullableOrPrivateRelayEmailReachBackend() = runTest(dispatcher) {
+        val socialEmails = listOf(null, "private@privaterelay.appleid.com")
+        var backendCalls = 0
+
+        socialEmails.forEachIndexed { index, email ->
+            val auth = FakeAuthProvider(AuthState.Authenticated(email, emailVerified = true))
+            val store = UserSessionStore()
+            val viewModel = AppViewModel(auth, CurrentUserGateway {
+                backendCalls += 1
+                CurrentUserResponse("social-user-$index", email, emailVerified = true)
+            }, store, SessionErrorStore(), NoOpOfflineCache)
+
+            advanceUntilIdle()
+
+            assertEquals(SessionState.AUTHENTICATED, viewModel.state.value.session)
+            assertEquals("social-user-$index", store.session.value?.userId)
+        }
+        assertEquals(2, backendCalls)
+    }
+
+    @Test
     fun logoutClearsInternalUserState() = runTest(dispatcher) {
         val auth = FakeAuthProvider(AuthState.Authenticated("plant@example.com", emailVerified = true))
         val store = UserSessionStore()

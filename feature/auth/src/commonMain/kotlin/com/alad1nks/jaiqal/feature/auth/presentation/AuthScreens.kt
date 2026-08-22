@@ -1,5 +1,6 @@
 package com.alad1nks.jaiqal.feature.auth.presentation
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -7,18 +8,26 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.alad1nks.jaiqal.core.auth.AuthErrorCode
 import com.alad1nks.jaiqal.core.designsystem.component.JaiqalButton
@@ -37,6 +46,11 @@ object AuthUiTags {
     const val EMAIL = "auth.email"
     const val PASSWORD = "auth.password"
     const val SUBMIT = "auth.submit"
+    const val DIVIDER = "auth.divider"
+    const val GOOGLE = "auth.google"
+    const val APPLE = "auth.apple"
+    const val GOOGLE_LOADING = "auth.google.loading"
+    const val APPLE_LOADING = "auth.apple.loading"
     const val ERROR = "auth.error"
 }
 
@@ -47,7 +61,16 @@ fun LoginScreen(
     viewModel: AuthViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    LoginContent(state, viewModel::setEmail, viewModel::setPassword, viewModel::signIn, onRegister, onForgotPassword)
+    LoginContent(
+        state = state,
+        onEmailChange = viewModel::setEmail,
+        onPasswordChange = viewModel::setPassword,
+        onSubmit = viewModel::signIn,
+        onGoogle = viewModel::signInWithGoogle,
+        onApple = viewModel::signInWithApple,
+        onRegister = onRegister,
+        onForgotPassword = onForgotPassword,
+    )
 }
 
 @Composable
@@ -56,6 +79,8 @@ internal fun LoginContent(
     onEmailChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onSubmit: () -> Unit,
+    onGoogle: () -> Unit,
+    onApple: () -> Unit,
     onRegister: () -> Unit,
     onForgotPassword: () -> Unit,
 ) {
@@ -67,6 +92,22 @@ internal fun LoginContent(
             modifier = Modifier.fillMaxWidth().testTag(AuthUiTags.SUBMIT),
             enabled = !state.isLoading,
         )
+        Text(
+            text = stringResource(Res.string.auth_or),
+            modifier = Modifier.testTag(AuthUiTags.DIVIDER),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelLarge,
+        )
+        GoogleAuthButton(
+            onClick = onGoogle,
+            enabled = !state.isLoading,
+            isLoading = state.loadingAction == AuthAction.GOOGLE,
+        )
+        AppleAuthButton(
+            onClick = onApple,
+            enabled = !state.isLoading,
+            isLoading = state.loadingAction == AuthAction.APPLE,
+        )
         AuthFeedback(state)
         TextButton(onClick = onForgotPassword, enabled = !state.isLoading) {
             Text(stringResource(Res.string.forgot_password))
@@ -75,6 +116,62 @@ internal fun LoginContent(
             Text(stringResource(Res.string.register))
         }
     }
+}
+
+@Composable
+private fun GoogleAuthButton(onClick: () -> Unit, enabled: Boolean, isLoading: Boolean) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(48.dp).testTag(AuthUiTags.GOOGLE),
+        enabled = enabled,
+        shape = RoundedCornerShape(4.dp),
+        border = BorderStroke(1.dp, Color(0xFF747775)),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = Color.White,
+            contentColor = Color(0xFF1F1F1F),
+            disabledContainerColor = Color(0xFFF2F2F2),
+            disabledContentColor = Color(0xFF6F6F6F),
+        ),
+    ) {
+        if (isLoading) {
+            ProviderProgress(AuthUiTags.GOOGLE_LOADING, Color(0xFF1A73E8))
+        } else {
+            Text("G", color = Color(0xFF1A73E8), fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.size(12.dp))
+        Text(stringResource(Res.string.continue_with_google), fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun AppleAuthButton(onClick: () -> Unit, enabled: Boolean, isLoading: Boolean) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(48.dp).testTag(AuthUiTags.APPLE),
+        enabled = enabled,
+        shape = RoundedCornerShape(8.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color.Black,
+            contentColor = Color.White,
+            disabledContainerColor = Color(0xFF3C3C3C),
+            disabledContentColor = Color(0xFFBEBEBE),
+        ),
+    ) {
+        if (isLoading) {
+            ProviderProgress(AuthUiTags.APPLE_LOADING, Color.White)
+            Spacer(Modifier.size(12.dp))
+        }
+        Text(stringResource(Res.string.continue_with_apple), fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun ProviderProgress(testTag: String, color: Color) {
+    CircularProgressIndicator(
+        modifier = Modifier.size(20.dp).testTag(testTag),
+        color = color,
+        strokeWidth = 2.dp,
+    )
 }
 
 @Composable
@@ -207,7 +304,10 @@ private fun AuthFields(
 
 @Composable
 private fun AuthFeedback(state: AuthFormUiState) {
-    if (state.isLoading) CircularProgressIndicator()
+    when (state.loadingAction) {
+        AuthAction.SIGN_IN, AuthAction.SIGN_UP, AuthAction.RESET_PASSWORD -> CircularProgressIndicator()
+        AuthAction.GOOGLE, AuthAction.APPLE, null -> Unit
+    }
     state.error?.let { AuthErrorText(it) }
     if (state.message == AuthMessage.RESET_EMAIL_SENT) {
         Text(
@@ -230,12 +330,12 @@ private fun AuthErrorText(error: AuthErrorCode) {
         AuthErrorCode.NETWORK -> Res.string.auth_error_network
         AuthErrorCode.NO_CURRENT_USER -> Res.string.auth_error_no_user
         AuthErrorCode.NOT_CONFIGURED -> Res.string.auth_error_not_configured
-        AuthErrorCode.CANCELLED,
-        AuthErrorCode.PROVIDER_UNAVAILABLE,
-        AuthErrorCode.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL,
-        AuthErrorCode.CREDENTIAL_ALREADY_IN_USE,
-        AuthErrorCode.INVALID_NONCE,
-        -> Res.string.auth_error_unknown
+        AuthErrorCode.CANCELLED -> Res.string.auth_error_cancelled
+        AuthErrorCode.PROVIDER_UNAVAILABLE -> Res.string.auth_error_provider_unavailable
+        AuthErrorCode.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL ->
+            Res.string.auth_error_account_exists_with_different_credential
+        AuthErrorCode.CREDENTIAL_ALREADY_IN_USE -> Res.string.auth_error_credential_already_in_use
+        AuthErrorCode.INVALID_NONCE -> Res.string.auth_error_invalid_nonce
         AuthErrorCode.UNKNOWN -> Res.string.auth_error_unknown
     }
     Text(

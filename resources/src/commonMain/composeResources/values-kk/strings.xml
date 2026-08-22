@@ -7,6 +7,9 @@
     <string name="email">Электрондық пошта</string>
     <string name="password">Құпиясөз</string>
     <string name="sign_in">Кіру</string>
+    <string name="auth_or">немесе</string>
+    <string name="continue_with_google">Google арқылы жалғастыру</string>
+    <string name="continue_with_apple">Apple арқылы жалғастыру</string>
     <string name="register">Тіркелгі жасау</string>
     <string name="register_message">Тіркелу Firebase арқылы тікелей орындалады.</string>
     <string name="forgot_password">Құпиясөзді қалпына келтіру</string>
@@ -29,6 +32,11 @@
     <string name="auth_error_network">Firebase қызметіне қосылмады. Байланысты тексеріңіз.</string>
     <string name="auth_error_no_user">Ағымдағы Firebase сессиясы табылмады.</string>
     <string name="auth_error_not_configured">Бұл жинақ үшін Firebase бапталмаған.</string>
+    <string name="auth_error_cancelled">Кіру тоқтатылды.</string>
+    <string name="auth_error_provider_unavailable">Бұл кіру тәсілі қазір қолжетімсіз. Басқа тәсілді қолданып көріңіз.</string>
+    <string name="auth_error_account_exists_with_different_credential">Бұл поштаға арналған тіркелгі басқа кіру тәсілімен жасалған. Бұрын қолданған тәсілмен кіріңіз.</string>
+    <string name="auth_error_credential_already_in_use">Бұл кіру деректері басқа тіркелгіге байланыстырылған.</string>
+    <string name="auth_error_invalid_nonce">Apple арқылы кіруді қауіпсіз аяқтау мүмкін болмады. Қайталап көріңіз.</string>
     <string name="auth_error_unknown">Операция орындалмады. Қайталап көріңіз.</string>
     <string name="backend_auth_error_title">Тіркелгі ашылмады</string>
     <string name="backend_auth_error_message">Firebase сессиясы белсенді, бірақ backend ішкі профильді растамады.</string>

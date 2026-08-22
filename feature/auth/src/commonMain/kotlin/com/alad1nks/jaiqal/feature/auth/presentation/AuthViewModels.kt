@@ -6,6 +6,8 @@ import com.alad1nks.jaiqal.core.auth.AuthErrorCode
 import com.alad1nks.jaiqal.core.auth.AuthException
 import com.alad1nks.jaiqal.core.auth.AuthProvider
 import com.alad1nks.jaiqal.core.auth.AuthState
+import com.alad1nks.jaiqal.core.auth.FederatedAuthMethod
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,13 +17,23 @@ import kotlinx.coroutines.launch
 
 enum class AuthMessage { RESET_EMAIL_SENT, VERIFICATION_EMAIL_SENT }
 
+enum class AuthAction {
+    SIGN_IN,
+    SIGN_UP,
+    RESET_PASSWORD,
+    GOOGLE,
+    APPLE,
+}
+
 data class AuthFormUiState(
     val email: String = "",
     val password: String = "",
-    val isLoading: Boolean = false,
+    val loadingAction: AuthAction? = null,
     val error: AuthErrorCode? = null,
     val message: AuthMessage? = null,
-)
+) {
+    val isLoading: Boolean get() = loadingAction != null
+}
 
 class AuthViewModel(private val authProvider: AuthProvider) : ViewModel() {
     private val mutableState = MutableStateFlow(AuthFormUiState())
@@ -30,20 +42,25 @@ class AuthViewModel(private val authProvider: AuthProvider) : ViewModel() {
     fun setEmail(value: String) = mutableState.update { it.copy(email = value, error = null, message = null) }
     fun setPassword(value: String) = mutableState.update { it.copy(password = value, error = null, message = null) }
 
-    fun signIn() = runAuthAction(requirePassword = true) { email, password ->
+    fun signIn() = runCredentialAction(AuthAction.SIGN_IN, requirePassword = true) { email, password ->
         authProvider.signIn(email, password)
     }
 
-    fun signUp() = runAuthAction(requirePassword = true) { email, password ->
+    fun signUp() = runCredentialAction(AuthAction.SIGN_UP, requirePassword = true) { email, password ->
         authProvider.signUp(email, password)
     }
 
-    fun sendPasswordReset() = runAuthAction(requirePassword = false) { email, _ ->
+    fun sendPasswordReset() = runCredentialAction(AuthAction.RESET_PASSWORD, requirePassword = false) { email, _ ->
         authProvider.sendPasswordReset(email)
         mutableState.update { it.copy(message = AuthMessage.RESET_EMAIL_SENT) }
     }
 
-    private fun runAuthAction(
+    fun signInWithGoogle() = runFederatedAction(FederatedAuthMethod.GOOGLE, AuthAction.GOOGLE)
+
+    fun signInWithApple() = runFederatedAction(FederatedAuthMethod.APPLE, AuthAction.APPLE)
+
+    private fun runCredentialAction(
+        authAction: AuthAction,
         requirePassword: Boolean,
         action: suspend (email: String, password: String) -> Unit,
     ) {
@@ -59,13 +76,30 @@ class AuthViewModel(private val authProvider: AuthProvider) : ViewModel() {
             mutableState.update { it.copy(error = validationError) }
             return
         }
+        launchAction(authAction) { action(email, password) }
+    }
+
+    private fun runFederatedAction(method: FederatedAuthMethod, authAction: AuthAction) {
+        if (mutableState.value.isLoading) return
+        launchAction(authAction) { authProvider.signIn(method) }
+    }
+
+    private fun launchAction(authAction: AuthAction, action: suspend () -> Unit) {
+        if (mutableState.value.isLoading) return
+        mutableState.update { it.copy(loadingAction = authAction, error = null, message = null) }
         viewModelScope.launch {
-            mutableState.update { it.copy(isLoading = true, error = null, message = null) }
-            runCatching { action(email, password) }
-                .onFailure { failure ->
-                    mutableState.update { it.copy(error = (failure as? AuthException)?.code ?: AuthErrorCode.UNKNOWN) }
+            try {
+                action()
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (failure: Throwable) {
+                val error = (failure as? AuthException)?.code ?: AuthErrorCode.UNKNOWN
+                if (error != AuthErrorCode.CANCELLED) {
+                    mutableState.update { it.copy(error = error) }
                 }
-            mutableState.update { it.copy(isLoading = false) }
+            } finally {
+                mutableState.update { it.copy(loadingAction = null) }
+            }
         }
     }
 
