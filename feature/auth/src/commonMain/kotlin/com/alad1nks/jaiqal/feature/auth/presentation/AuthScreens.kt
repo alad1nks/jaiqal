@@ -51,6 +51,8 @@ object AuthUiTags {
     const val APPLE = "auth.apple"
     const val GOOGLE_LOADING = "auth.google.loading"
     const val APPLE_LOADING = "auth.apple.loading"
+    const val FORGOT_PASSWORD = "auth.forgot-password"
+    const val REGISTER_ACTION = "auth.register-action"
     const val ERROR = "auth.error"
 }
 
@@ -109,10 +111,18 @@ internal fun LoginContent(
             isLoading = state.loadingAction == AuthAction.APPLE,
         )
         AuthFeedback(state)
-        TextButton(onClick = onForgotPassword, enabled = !state.isLoading) {
+        TextButton(
+            onClick = onForgotPassword,
+            modifier = Modifier.testTag(AuthUiTags.FORGOT_PASSWORD),
+            enabled = !state.isLoading,
+        ) {
             Text(stringResource(Res.string.forgot_password))
         }
-        TextButton(onClick = onRegister, enabled = !state.isLoading) {
+        TextButton(
+            onClick = onRegister,
+            modifier = Modifier.testTag(AuthUiTags.REGISTER_ACTION),
+            enabled = !state.isLoading,
+        ) {
             Text(stringResource(Res.string.register))
         }
     }
