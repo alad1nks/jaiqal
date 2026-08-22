@@ -1,12 +1,19 @@
+import AuthenticationServices
+import CryptoKit
 import FirebaseAuth
 import FirebaseCore
 import GoogleSignIn
+import Security
 import Shared
 import UIKit
 
 final class AppleFirebaseAuthBridge: NSObject, IosFirebaseAuthBridge {
     private static let googleSignInCancelledErrorCode = -5
     private var googleSignInInProgress = false
+    private var appleRawNonce: String?
+    private var appleCompletion: ((String?) -> Void)?
+    private var appleAuthorizationController: ASAuthorizationController?
+    private var applePresentationAnchor: ASPresentationAnchor?
 
     func addAuthStateListener(listener: @escaping (IosFirebaseUser?) -> Void) -> IosAuthStateSubscription {
         let handle = Auth.auth().addStateDidChangeListener { _, user in
@@ -44,7 +51,7 @@ final class AppleFirebaseAuthBridge: NSObject, IosFirebaseAuthBridge {
         case .google:
             signInWithGoogle(completion: completion)
         case .apple:
-            completion("provider-unavailable")
+            signInWithApple(completion: completion)
         default:
             completion("provider-unavailable")
         }
@@ -106,7 +113,8 @@ final class AppleFirebaseAuthBridge: NSObject, IosFirebaseAuthBridge {
                 completion("provider-unavailable")
                 return
             }
-            guard !self.googleSignInInProgress else {
+            guard !self.googleSignInInProgress,
+                  self.appleCompletion == nil else {
                 completion("provider-unavailable")
                 return
             }
@@ -154,6 +162,67 @@ final class AppleFirebaseAuthBridge: NSObject, IosFirebaseAuthBridge {
         completion(errorCode)
     }
 
+    private func signInWithApple(completion: @escaping (String?) -> Void) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else {
+                completion("provider-unavailable")
+                return
+            }
+            guard !self.googleSignInInProgress,
+                  self.appleCompletion == nil,
+                  let presentationAnchor = Self.presentationAnchor(),
+                  let rawNonce = Self.randomNonce() else {
+                completion("provider-unavailable")
+                return
+            }
+
+            let request = ASAuthorizationAppleIDProvider().createRequest()
+            request.requestedScopes = [.fullName, .email]
+            request.nonce = Self.sha256(rawNonce)
+
+            let controller = ASAuthorizationController(authorizationRequests: [request])
+            self.appleRawNonce = rawNonce
+            self.appleCompletion = completion
+            self.appleAuthorizationController = controller
+            self.applePresentationAnchor = presentationAnchor
+            controller.delegate = self
+            controller.presentationContextProvider = self
+            controller.performRequests()
+        }
+    }
+
+    private func finishAppleSignIn(errorCode: String?) {
+        let completion = appleCompletion
+        appleRawNonce = nil
+        appleCompletion = nil
+        appleAuthorizationController = nil
+        applePresentationAnchor = nil
+        completion?(errorCode)
+    }
+
+    private static func randomNonce(length: Int = 32) -> String? {
+        guard length > 0 else { return nil }
+        let characterSet = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
+        var result = ""
+        result.reserveCapacity(length)
+
+        while result.count < length {
+            var randomByte: UInt8 = 0
+            guard SecRandomCopyBytes(kSecRandomDefault, 1, &randomByte) == errSecSuccess else {
+                return nil
+            }
+            if randomByte < characterSet.count {
+                result.append(characterSet[Int(randomByte)])
+            }
+        }
+        return result
+    }
+
+    private static func sha256(_ input: String) -> String {
+        let digest = SHA256.hash(data: Data(input.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
     private static func presentingViewController() -> UIViewController? {
         let windowScene = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
@@ -162,6 +231,10 @@ final class AppleFirebaseAuthBridge: NSObject, IosFirebaseAuthBridge {
             return nil
         }
         return topViewController(from: root)
+    }
+
+    private static func presentationAnchor() -> ASPresentationAnchor? {
+        presentingViewController()?.view.window
     }
 
     private static func topViewController(from viewController: UIViewController) -> UIViewController {
@@ -226,9 +299,63 @@ final class AppleFirebaseAuthBridge: NSObject, IosFirebaseAuthBridge {
             return "account-exists-with-different-credential"
         case .credentialAlreadyInUse:
             return "credential-already-in-use"
+        case .missingOrInvalidNonce:
+            return "invalid-nonce"
         default:
             return "unknown"
         }
+    }
+}
+
+extension AppleFirebaseAuthBridge: ASAuthorizationControllerDelegate,
+    ASAuthorizationControllerPresentationContextProviding {
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        applePresentationAnchor ?? ASPresentationAnchor()
+    }
+
+    func authorizationController(
+        controller: ASAuthorizationController,
+        didCompleteWithAuthorization authorization: ASAuthorization
+    ) {
+        guard let rawNonce = appleRawNonce else {
+            finishAppleSignIn(errorCode: "invalid-nonce")
+            return
+        }
+        guard let appleCredential = authorization.credential as? ASAuthorizationAppleIDCredential,
+              let identityToken = appleCredential.identityToken,
+              let idToken = String(data: identityToken, encoding: .utf8),
+              !idToken.isEmpty else {
+            finishAppleSignIn(errorCode: "invalid-credentials")
+            return
+        }
+
+        let credential = OAuthProvider.appleCredential(
+            withIDToken: idToken,
+            rawNonce: rawNonce,
+            fullName: appleCredential.fullName
+        )
+        Auth.auth().signIn(with: credential) { _, error in
+            self.finishAppleSignIn(errorCode: Self.stableErrorCode(error))
+        }
+    }
+
+    func authorizationController(
+        controller: ASAuthorizationController,
+        didCompleteWithError error: Error
+    ) {
+        let nsError = error as NSError
+        let errorCode: String
+        if nsError.domain == ASAuthorizationError.errorDomain,
+           nsError.code == ASAuthorizationError.canceled.rawValue {
+            errorCode = "cancelled"
+        } else if Self.containsNetworkError(nsError) {
+            errorCode = "network"
+        } else if nsError.domain == ASAuthorizationError.errorDomain {
+            errorCode = "provider-unavailable"
+        } else {
+            errorCode = "unknown"
+        }
+        finishAppleSignIn(errorCode: errorCode)
     }
 }
 
