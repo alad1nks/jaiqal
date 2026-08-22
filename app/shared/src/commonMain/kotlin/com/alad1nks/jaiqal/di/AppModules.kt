@@ -23,7 +23,7 @@ import org.koin.dsl.module
 private fun appModule(appInfo: AppInfo, crashReporter: CrashReporter) = module {
     single { appInfo }
     single { crashReporter }
-    viewModel { AppViewModel(get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { AppViewModel(get(), get(), get(), get(), get(), get(), get(), get()) }
 }
 
 internal fun appModules(

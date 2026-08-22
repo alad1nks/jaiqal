@@ -37,6 +37,56 @@ import kotlinx.serialization.json.jsonObject
 import java.util.concurrent.atomic.AtomicInteger
 
 class UserApplicationTest {
+    @Test fun `account deletion route uses internal identity and emits credential-free audit`() = testApplication {
+        val store = MemoryStore()
+        val owner = UserRecord(UUID.randomUUID(), "owner@example.test", null, OffsetDateTime.now(clock))
+        val events = mutableListOf<SecurityAuditEvent>()
+        val deleted = mutableListOf<Pair<UUID, String>>()
+        var tombstoned = false
+        val verifier = FakeFirebaseTokenVerifier(
+            mapOf("firebase-id-token" to Result.success(
+                VerifiedFirebaseToken("sensitive-firebase-uid", owner.email, true, validUntil),
+            )),
+        )
+        val identities = object : UserIdentityStore {
+            override fun findUserByIdentity(provider: String, externalSubject: String) =
+                owner.takeUnless { tombstoned }
+            override fun deletedIdentityOwner(provider: String, externalSubject: String) =
+                owner.id.takeIf { tombstoned }
+            override fun createUserWithIdentity(user: UserRecord, identity: UserIdentityRecord) = error("unused")
+        }
+        application {
+            configureApplication(
+                AppConfig(8080, DatabaseConfig("jdbc:none", "x", "x"), emptySet(), FirebaseConfig("test-project")),
+                { true },
+                userApplication = UserApplicationService(store, clock = clock),
+                firebaseTokenVerifier = verifier,
+                firebaseUsers = FirebaseUserIdentityService(identities, true),
+                securityAuditTrail = SecurityAuditTrail(events::add),
+                accountDeletion = AccountDeletionService { userId, firebaseUid ->
+                    deleted += userId to firebaseUid
+                    tombstoned = true
+                },
+            )
+        }
+
+        val response = client.delete("/api/v1/auth/me") { bearerAuth("firebase-id-token") }
+        val retry = client.delete("/api/v1/auth/me") { bearerAuth("firebase-id-token") }
+        val profileAfterDeletion = client.get("/api/v1/auth/me") { bearerAuth("firebase-id-token") }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(HttpStatusCode.OK, retry.status)
+        assertEquals(HttpStatusCode.Unauthorized, profileAfterDeletion.status)
+        assertEquals(DeleteAccountResponse(), Json.decodeFromString(response.bodyAsText()))
+        assertEquals(listOf(owner.id to "sensitive-firebase-uid"), deleted)
+        val audit = events.first { it.action == SecurityAuditAction.DELETE_ACCOUNT }
+        assertEquals(SecurityAuditResult.SUCCESS, audit.result)
+        assertEquals(owner.id, audit.actorUserId)
+        assertFalse(audit.toString().contains("sensitive-firebase-uid"))
+        assertFalse(audit.toString().contains("owner@example.test"))
+        assertFalse(audit.toString().contains("firebase-id-token"))
+    }
+
     @Test fun `sensitive device mutations emit safe audit events for success and rejection`() = testApplication {
         val store = MemoryStore()
         val owner = UserRecord(UUID.randomUUID(), "owner@example.test", null, OffsetDateTime.now(clock))

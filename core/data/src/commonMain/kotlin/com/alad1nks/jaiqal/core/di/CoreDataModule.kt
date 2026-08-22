@@ -1,9 +1,16 @@
 package com.alad1nks.jaiqal.core.di
 
 import com.alad1nks.jaiqal.core.auth.ApiCurrentUserGateway
+import com.alad1nks.jaiqal.core.auth.ApiAccountDeletionGateway
+import com.alad1nks.jaiqal.core.auth.AccountDeletionCoordinator
+import com.alad1nks.jaiqal.core.auth.AccountDeletionGateway
+import com.alad1nks.jaiqal.core.auth.AccountDeletionRecoveryStore
 import com.alad1nks.jaiqal.core.auth.AuthProvider
 import com.alad1nks.jaiqal.core.auth.CurrentUserGateway
 import com.alad1nks.jaiqal.core.auth.UnavailableCurrentUserGateway
+import com.alad1nks.jaiqal.core.auth.UnavailableAccountDeletionGateway
+import com.alad1nks.jaiqal.core.auth.InMemoryAccountDeletionRecoveryStore
+import com.alad1nks.jaiqal.core.auth.SqlDelightAccountDeletionRecoveryStore
 import com.alad1nks.jaiqal.core.auth.UserSessionStore
 import com.alad1nks.jaiqal.core.cache.NoOpOfflineCache
 import com.alad1nks.jaiqal.core.cache.OfflineCache
@@ -45,9 +52,11 @@ fun coreDataModule(
         single { JaiqalDatabase(get()) }
         single<OfflineCache> { SqlDelightOfflineCache(get()) }
         single<AppPreferences> { SqlDelightAppPreferences(get()) }
+        single<AccountDeletionRecoveryStore> { SqlDelightAccountDeletionRecoveryStore(get()) }
     } else {
         single<OfflineCache> { NoOpOfflineCache }
         single<AppPreferences> { InMemoryAppPreferences() }
+        single<AccountDeletionRecoveryStore> { InMemoryAccountDeletionRecoveryStore() }
     }
 
     if (httpClient != null) {
@@ -55,7 +64,10 @@ fun coreDataModule(
         single<AuthenticatedRequestExecutor> { FirebaseAuthenticatedRequestExecutor(get(), get()) }
         single<ApiClient> { KtorApiClient(get(), get(), get()) }
         single<CurrentUserGateway> { ApiCurrentUserGateway(get()) }
+        single<AccountDeletionGateway> { ApiAccountDeletionGateway(get()) }
     } else {
         single<CurrentUserGateway> { UnavailableCurrentUserGateway() }
+        single<AccountDeletionGateway> { UnavailableAccountDeletionGateway() }
     }
+    single { AccountDeletionCoordinator(get(), get(), get(), get(), get()) }
 }

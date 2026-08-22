@@ -86,5 +86,11 @@ class IosFirebaseAuthProviderTest {
             completion(if (forceRefresh) "fresh-token" else "cached-token", null)
         }
         override fun signOut(): String? { user = null; return null }
+        override fun reauthenticateForAccountDeletion(password: String?, completion: (String?) -> Unit) =
+            completion(null)
+        override fun deleteCurrentUser(completion: (String?) -> Unit) {
+            user = null
+            completion(null)
+        }
     }
 }

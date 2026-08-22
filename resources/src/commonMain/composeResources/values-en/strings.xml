@@ -212,4 +212,10 @@
     <string name="settings_too_many_requests">Too many requests. Try again later.</string>
     <string name="settings_no_user">No current Firebase session was found.</string>
     <string name="settings_unknown_error">The action failed. Try again.</string>
+    <string name="settings_invalid_credentials">We could not verify your identity. Check your sign-in details and try again.</string>
+    <string name="delete_account">Delete account</string>
+    <string name="delete_account_title">Delete your account permanently?</string>
+    <string name="delete_account_warning">Your account, plants, devices, measurements, and alerts will be permanently deleted.</string>
+    <string name="delete_account_reauthenticate">Confirm your identity with your current sign-in method to continue.</string>
+    <string name="delete_account_confirm">Delete permanently</string>
 </resources>

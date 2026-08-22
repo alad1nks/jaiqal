@@ -21,8 +21,10 @@ import com.google.firebase.auth.AuthResult
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.OAuthProvider
+import com.google.firebase.auth.OAuthCredential
 import java.lang.ref.WeakReference
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -36,6 +38,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 internal data class AndroidFirebaseUser(
     val email: String?,
     val emailVerified: Boolean,
+    val method: AccountAuthMethod = AccountAuthMethod.UNKNOWN,
 )
 
 internal interface AndroidAuthStateSubscription
@@ -53,8 +56,17 @@ internal class NoGoogleCredentialAvailableException(cause: Throwable? = null) : 
 internal class AndroidGoogleSignInCoordinator(
     private val idTokenSource: AndroidGoogleIdTokenSource,
     private val firebaseAuthenticator: AndroidGoogleFirebaseAuthenticator,
+    private val firebaseReauthenticator: AndroidGoogleFirebaseAuthenticator = firebaseAuthenticator,
 ) {
     suspend fun signIn() {
+        firebaseAuthenticator.signIn(requestIdToken())
+    }
+
+    suspend fun reauthenticate() {
+        firebaseReauthenticator.signIn(requestIdToken())
+    }
+
+    private suspend fun requestIdToken(): String {
         val idToken = try {
             idTokenSource.getIdToken(filterByAuthorizedAccounts = true)
         } catch (_: NoGoogleCredentialAvailableException) {
@@ -64,13 +76,14 @@ internal class AndroidGoogleSignInCoordinator(
                 throw AuthException(AuthErrorCode.PROVIDER_UNAVAILABLE, failure)
             }
         }
-        firebaseAuthenticator.signIn(idToken)
+        return idToken
     }
 }
 
 internal interface AndroidAppleAuthClient {
     suspend fun completePendingSignIn(): Boolean
     suspend fun startSignIn()
+    suspend fun startReauthentication() = startSignIn()
 }
 
 internal class AndroidAppleSignInCoordinator(
@@ -80,6 +93,16 @@ internal class AndroidAppleSignInCoordinator(
     private var activeOperation: CompletableDeferred<Unit>? = null
 
     suspend fun signIn() {
+        runOperation {
+            if (!client.completePendingSignIn()) client.startSignIn()
+        }
+    }
+
+    suspend fun reauthenticate() {
+        runOperation(client::startReauthentication)
+    }
+
+    private suspend fun runOperation(action: suspend () -> Unit) {
         var ownsOperation = false
         val operation = synchronized(operationLock) {
             activeOperation ?: CompletableDeferred<Unit>().also {
@@ -93,9 +116,7 @@ internal class AndroidAppleSignInCoordinator(
         }
 
         try {
-            if (!client.completePendingSignIn()) {
-                client.startSignIn()
-            }
+            action()
             operation.complete(Unit)
         } catch (failure: Throwable) {
             operation.completeExceptionally(failure)
@@ -138,6 +159,9 @@ internal interface AndroidFirebaseAuthBridge {
     suspend fun reloadUser(): AndroidFirebaseUser?
     suspend fun getIdToken(forceRefresh: Boolean): String?
     suspend fun signOut()
+    suspend fun reauthenticateForAccountDeletion(password: String?): Unit =
+        throw AuthException(AuthErrorCode.PROVIDER_UNAVAILABLE)
+    suspend fun deleteCurrentUser(): Unit = throw AuthException(AuthErrorCode.PROVIDER_UNAVAILABLE)
 }
 
 class AndroidFirebaseAuthProvider private constructor(
@@ -185,6 +209,14 @@ class AndroidFirebaseAuthProvider private constructor(
         } finally {
             mutableAuthState.value = AuthState.Unauthenticated
         }
+    }
+
+    override suspend fun reauthenticateForAccountDeletion(password: String?) =
+        bridge.reauthenticateForAccountDeletion(password)
+
+    override suspend fun deleteCurrentUser() {
+        bridge.deleteCurrentUser()
+        mutableAuthState.value = AuthState.Unauthenticated
     }
 
     internal companion object {
@@ -248,6 +280,28 @@ private class FirebaseSdkAuthBridge(
     }
 
     override suspend fun signOut() = signOutCoordinator.signOut()
+
+    override suspend fun reauthenticateForAccountDeletion(password: String?) {
+        val user = firebaseAuth.currentUser ?: throw AuthException(AuthErrorCode.NO_CURRENT_USER)
+        when (user.accountAuthMethod()) {
+            AccountAuthMethod.PASSWORD -> {
+                val email = user.email ?: throw AuthException(AuthErrorCode.INVALID_CREDENTIALS)
+                val suppliedPassword = password?.takeIf(String::isNotBlank)
+                    ?: throw AuthException(AuthErrorCode.INVALID_CREDENTIALS)
+                user.reauthenticate(EmailAuthProvider.getCredential(email, suppliedPassword)).awaitResult()
+            }
+            AccountAuthMethod.GOOGLE -> googleSignIn?.reauthenticate()
+                ?: throw AuthException(AuthErrorCode.PROVIDER_UNAVAILABLE)
+            AccountAuthMethod.APPLE -> appleSignIn?.reauthenticate()
+                ?: throw AuthException(AuthErrorCode.PROVIDER_UNAVAILABLE)
+            AccountAuthMethod.UNKNOWN -> throw AuthException(AuthErrorCode.PROVIDER_UNAVAILABLE)
+        }
+    }
+
+    override suspend fun deleteCurrentUser() {
+        val user = firebaseAuth.currentUser ?: throw AuthException(AuthErrorCode.NO_CURRENT_USER)
+        user.delete().awaitResult()
+    }
 }
 
 private fun createFirebaseSdkAuthBridge(
@@ -283,6 +337,10 @@ private fun createGoogleSignInCoordinator(
     firebaseAuthenticator = AndroidGoogleFirebaseAuthenticator { idToken ->
         val credential = GoogleAuthProvider.getCredential(idToken, null)
         firebaseAuth.signInWithCredential(credential).awaitResult()
+    },
+    firebaseReauthenticator = AndroidGoogleFirebaseAuthenticator { idToken ->
+        val user = firebaseAuth.currentUser ?: throw AuthException(AuthErrorCode.NO_CURRENT_USER)
+        user.reauthenticate(GoogleAuthProvider.getCredential(idToken, null)).awaitResult()
     },
 )
 
@@ -328,6 +386,21 @@ private class FirebaseAppleAuthClient(
         } finally {
             if (result.isComplete && startedResult === result) startedResult = null
         }
+    }
+
+    override suspend fun startReauthentication() {
+        val activity = activityReference.get()
+            ?.takeUnless { it.isFinishing || it.isDestroyed }
+            ?: throw AuthException(AuthErrorCode.PROVIDER_UNAVAILABLE)
+        val provider = OAuthProvider.newBuilder("apple.com")
+            .setScopes(listOf("email", "name"))
+            .build()
+        val user = firebaseAuth.currentUser ?: throw AuthException(AuthErrorCode.NO_CURRENT_USER)
+        val result = user.startActivityForReauthenticateWithProvider(activity, provider).awaitResult()
+        val freshAppleToken = (result.credential as? OAuthCredential)?.accessToken
+            ?.takeIf(String::isNotBlank)
+            ?: throw AuthException(AuthErrorCode.INVALID_CREDENTIALS)
+        firebaseAuth.revokeAccessToken(freshAppleToken).awaitResult()
     }
 }
 
@@ -388,13 +461,23 @@ internal fun Credential.toGoogleIdToken(): String {
 }
 
 private fun FirebaseUser?.toBridgeUser(): AndroidFirebaseUser? = this?.let {
-    AndroidFirebaseUser(email = it.email, emailVerified = it.isEmailVerified)
+    AndroidFirebaseUser(email = it.email, emailVerified = it.isEmailVerified, method = it.accountAuthMethod())
+}
+
+private fun FirebaseUser.accountAuthMethod(): AccountAuthMethod {
+    val providers = providerData.map { it.providerId }.toSet()
+    return when {
+        EmailAuthProvider.PROVIDER_ID in providers -> AccountAuthMethod.PASSWORD
+        GoogleAuthProvider.PROVIDER_ID in providers -> AccountAuthMethod.GOOGLE
+        "apple.com" in providers -> AccountAuthMethod.APPLE
+        else -> AccountAuthMethod.UNKNOWN
+    }
 }
 
 private fun AndroidFirebaseUser?.toAuthState(): AuthState = if (this == null) {
     AuthState.Unauthenticated
 } else {
-    AuthState.Authenticated(email = email, emailVerified = emailVerified)
+    AuthState.Authenticated(email = email, emailVerified = emailVerified, method = method)
 }
 
 private suspend fun <T> Task<T>.awaitResult(): T = suspendCancellableCoroutine { continuation ->
@@ -432,6 +515,7 @@ internal fun mapFirebaseAuthError(
         "ERROR_NETWORK_REQUEST_FAILED" -> AuthErrorCode.NETWORK
         "ERROR_ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL" -> AuthErrorCode.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL
         "ERROR_CREDENTIAL_ALREADY_IN_USE" -> AuthErrorCode.CREDENTIAL_ALREADY_IN_USE
+        "ERROR_REQUIRES_RECENT_LOGIN" -> AuthErrorCode.REAUTHENTICATION_REQUIRED
         else -> AuthErrorCode.UNKNOWN
     }
 }

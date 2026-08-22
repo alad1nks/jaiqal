@@ -17,6 +17,9 @@ class FakeAuthProvider(initialState: AuthState = AuthState.Unauthenticated) : Au
     var lastFederatedAuthMethod: FederatedAuthMethod? = null
     var verificationEmailsSent: Int = 0
     var resetEmailsSent: Int = 0
+    val deletionReauthenticationPasswords = mutableListOf<String?>()
+    var accountDeletionFailure: Throwable? = null
+    var firebaseUsersDeleted: Int = 0
 
     override suspend fun signUp(email: String, password: String) {
         lastEmail = email
@@ -60,6 +63,16 @@ class FakeAuthProvider(initialState: AuthState = AuthState.Unauthenticated) : Au
     }
 
     override suspend fun signOut() {
+        mutableAuthState.value = AuthState.Unauthenticated
+    }
+
+    override suspend fun reauthenticateForAccountDeletion(password: String?) {
+        deletionReauthenticationPasswords += password
+    }
+
+    override suspend fun deleteCurrentUser() {
+        accountDeletionFailure?.let { throw it }
+        firebaseUsersDeleted += 1
         mutableAuthState.value = AuthState.Unauthenticated
     }
 

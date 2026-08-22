@@ -25,6 +25,7 @@ import com.alad1nks.jaiqal.infrastructure.database.JdbcPlantTelemetryRepository
 import com.alad1nks.jaiqal.infrastructure.database.JdbcUserIdentityStore
 import com.alad1nks.jaiqal.users.UserApplicationService
 import com.alad1nks.jaiqal.users.FirebaseUserIdentityService
+import com.alad1nks.jaiqal.users.AccountDeletionService
 import com.alad1nks.jaiqal.telemetry.MeasurementEventBus
 import com.alad1nks.jaiqal.telemetry.PlantTelemetryService
 import com.alad1nks.jaiqal.plugins.configureAuthentication
@@ -58,6 +59,7 @@ fun main() {
     val securityAuditTrail = SecurityAuditTrail.logging()
     val alertService = AlertService(database.dataSource)
     val notificationWorker = NotificationWorker(database.dataSource, LoggingNotificationSender(), config.alerts)
+    val userIdentityStore = JdbcUserIdentityStore(database.dataSource)
     Runtime.getRuntime().addShutdownHook(Thread(database::close))
     embeddedServer(
         factory = Netty,
@@ -85,13 +87,14 @@ fun main() {
             notificationWorker,
             firebaseTokenVerifier,
             FirebaseUserIdentityService(
-                JdbcUserIdentityStore(database.dataSource),
+                userIdentityStore,
                 config.firebase.autoProvisionUsers,
                 securityAuditTrail = securityAuditTrail,
             ),
             DatabaseCapacityMonitor(database.dataSource, config.capacityMonitoring),
             TelemetryRetentionWorker(database.dataSource, config.telemetryRetention),
             securityAuditTrail,
+            accountDeletion = AccountDeletionService(userIdentityStore),
         )
     }.start(wait = true)
 }
@@ -113,6 +116,7 @@ fun Application.configureApplication(
     telemetryRetentionWorker: TelemetryRetentionWorker? = null,
     securityAuditTrail: SecurityAuditTrail = SecurityAuditTrail.logging(),
     directPeerAddress: (ApplicationCall) -> String = { call -> call.request.local.remoteAddress },
+    accountDeletion: AccountDeletionService? = null,
 ) {
     configureMonitoring()
     configureHttp(config, securityAuditTrail, directPeerAddress)
@@ -134,6 +138,7 @@ fun Application.configureApplication(
         httpLimits = config.httpLimits,
         alerts = alertService,
         securityAuditTrail = securityAuditTrail,
+        accountDeletion = accountDeletion,
     )
     if (alertService != null) {
         eventBus?.let { bus -> launch(Dispatchers.IO) { bus.updates.collect { event -> event.plantId?.let(alertService::evaluatePlant) } } }

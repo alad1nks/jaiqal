@@ -10,6 +10,7 @@ import org.junit.Test
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
@@ -59,6 +60,19 @@ class FirebaseUserIdentityServiceTest {
 
         assertNull(created.email)
         assertNull(created.passwordHash)
+    }
+
+    @Test
+    fun `deleted Firebase identity cannot be auto provisioned again`() {
+        val store = MemoryIdentityStore().apply { deletedIdentities += "deleted-uid" }
+        val service = FirebaseUserIdentityService(store, autoProvisionUsers = true, clock = clock)
+
+        assertFailsWith<DeletedFirebaseIdentityException> {
+            service.resolve(token("deleted-uid"))
+        }
+
+        assertEquals(0, store.users.size)
+        assertEquals(0, store.identities.size)
     }
 
     @Test
@@ -123,6 +137,12 @@ class FirebaseUserIdentityServiceTest {
 private class MemoryIdentityStore : UserIdentityStore {
     val users = mutableListOf<UserRecord>()
     val identities = mutableListOf<UserIdentityRecord>()
+    val deletedIdentities = mutableSetOf<String>()
+
+    override fun deletedIdentityOwner(provider: String, externalSubject: String): UUID? =
+        UUID(0, 1).takeIf {
+            provider == FIREBASE_IDENTITY_PROVIDER && externalSubject in deletedIdentities
+        }
 
     override fun findUserByIdentity(provider: String, externalSubject: String): UserRecord? =
         identities.find { it.provider == provider && it.externalSubject == externalSubject }

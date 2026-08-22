@@ -16,6 +16,7 @@ import com.alad1nks.jaiqal.api.contract.HistoryInterval
 import com.alad1nks.jaiqal.users.UserRecord
 import com.alad1nks.jaiqal.users.FirebaseUserIdentityService
 import com.alad1nks.jaiqal.users.UnknownFirebaseIdentityException
+import com.alad1nks.jaiqal.users.DeletedFirebaseIdentityException
 import com.alad1nks.jaiqal.config.AlertConfig
 import com.alad1nks.jaiqal.infrastructure.security.SecurityAuditAction
 import com.alad1nks.jaiqal.infrastructure.security.SecurityAuditEvent
@@ -58,6 +59,7 @@ class PersistenceIntegrationTest {
                 "users", "plants", "devices", "measurements", "device_latest_state",
                 "refresh_tokens", "alert_rules", "alert_events", "notification_outbox", "device_claim_codes",
                 "user_identities",
+                "deleted_firebase_identities",
                 "device_ingestion_quotas",
             )
             connection.metaData.getTables(null, "public", "%", arrayOf("TABLE", "PARTITIONED TABLE")).use { rows ->
@@ -393,6 +395,49 @@ class PersistenceIntegrationTest {
     }
 
     @Test
+    fun `account deletion is atomic idempotent and prevents reprovisioning`() {
+        val ids = fixture()
+        val uid = "delete-${UUID.randomUUID()}"
+        val identityId = UUID.randomUUID()
+        infrastructure.dataSource.connection.use { connection ->
+            connection.prepareStatement(
+                "INSERT INTO user_identities(id,user_id,provider,external_subject,created_at) VALUES (?,?,?,?,?)",
+            ).use { statement ->
+                statement.setObject(1, identityId)
+                statement.setObject(2, ids.userId)
+                statement.setString(3, "firebase")
+                statement.setString(4, uid)
+                statement.setObject(5, now)
+                statement.executeUpdate()
+            }
+            connection.commit()
+        }
+        val measurements = ExposedMeasurementRepository(infrastructure.database)
+        val measurement = measurements.insert(
+            NewMeasurement(ids.deviceId, 999, now, now, soilMoistureRaw = 1500),
+        )!!
+        measurements.upsertLatest(
+            com.alad1nks.jaiqal.telemetry.LatestDeviceState(ids.deviceId, measurement.id, now),
+        )
+        val store = JdbcUserIdentityStore(infrastructure.dataSource)
+
+        store.deleteAccount(ids.userId, uid)
+        store.deleteAccount(ids.userId, uid)
+
+        assertEquals(0, rowCount("users", "id", ids.userId))
+        assertEquals(0, rowCount("plants", "id", ids.plantId))
+        assertEquals(0, rowCount("devices", "id", ids.deviceId))
+        assertEquals(0, rowCount("measurements", "device_id", ids.deviceId))
+        assertEquals(0, identityCount(uid))
+        assertEquals(ids.userId, store.deletedIdentityOwner("firebase", uid))
+        assertFailsWith<DeletedFirebaseIdentityException> {
+            FirebaseUserIdentityService(store, true).resolve(
+                VerifiedFirebaseToken(uid, "owner@example.test", true, validUntil),
+            )
+        }
+    }
+
+    @Test
     fun `measurement insertion is idempotent per device and sequence`() {
         val ids = fixture()
         val repository = ExposedMeasurementRepository(infrastructure.database)
@@ -585,6 +630,14 @@ class PersistenceIntegrationTest {
             it.executeQuery().use { row -> row.next(); row.getInt(1) }
         }
     }
+
+    private fun rowCount(table: String, column: String, value: UUID): Int =
+        infrastructure.dataSource.connection.use { connection ->
+            connection.prepareStatement("SELECT count(*) FROM $table WHERE $column=?").use { statement ->
+                statement.setObject(1, value)
+                statement.executeQuery().use { row -> row.next(); row.getInt(1) }
+            }
+        }
 
     private data class FixtureIds(val userId: UUID, val plantId: UUID, val deviceId: UUID, val deviceToken: String)
 

@@ -5,6 +5,7 @@ import com.alad1nks.jaiqal.auth.FirebaseTokenVerificationException
 import com.alad1nks.jaiqal.auth.FirebaseTokenVerifier
 import com.alad1nks.jaiqal.auth.UserPrincipal
 import com.alad1nks.jaiqal.users.FirebaseIdentityConflictException
+import com.alad1nks.jaiqal.users.DeletedFirebaseIdentityException
 import com.alad1nks.jaiqal.users.FirebaseUserIdentityService
 import com.alad1nks.jaiqal.users.UnknownFirebaseIdentityException
 import io.ktor.server.application.Application
@@ -46,6 +47,15 @@ fun Application.configureAuthentication(
                     return@authenticate null
                 } catch (_: FirebaseIdentityConflictException) {
                     return@authenticate null
+                } catch (deleted: DeletedFirebaseIdentityException) {
+                    return@authenticate UserPrincipal(
+                        userId = deleted.userId,
+                        firebaseUid = verified.uid,
+                        email = null,
+                        emailVerified = false,
+                        expiresAt = verified.expiresAt,
+                        deleted = true,
+                    )
                 }
                 UserPrincipal(
                     userId = user.id,

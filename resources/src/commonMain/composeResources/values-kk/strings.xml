@@ -212,4 +212,10 @@
     <string name="settings_too_many_requests">Сұрау тым көп. Кейінірек қайталаңыз.</string>
     <string name="settings_no_user">Ағымдағы Firebase сессиясы табылмады.</string>
     <string name="settings_unknown_error">Әрекет орындалмады. Қайталаңыз.</string>
+    <string name="settings_invalid_credentials">Жеке басыңызды растау мүмкін болмады. Кіру деректерін тексеріп, қайталаңыз.</string>
+    <string name="delete_account">Тіркелгіні жою</string>
+    <string name="delete_account_title">Тіркелгіні біржола жою керек пе?</string>
+    <string name="delete_account_warning">Тіркелгі, өсімдіктер, құрылғылар, өлшемдер және ескертулер қайтарымсыз жойылады.</string>
+    <string name="delete_account_reauthenticate">Жалғастыру үшін ағымдағы кіру тәсілімен жеке басыңызды растаңыз.</string>
+    <string name="delete_account_confirm">Біржола жою</string>
 </resources>

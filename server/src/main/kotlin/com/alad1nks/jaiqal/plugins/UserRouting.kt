@@ -3,6 +3,7 @@ package com.alad1nks.jaiqal.plugins
 import com.alad1nks.jaiqal.api.contract.*
 import com.alad1nks.jaiqal.auth.UserPrincipal
 import com.alad1nks.jaiqal.users.UserApplicationService
+import com.alad1nks.jaiqal.users.AccountDeletionService
 import com.alad1nks.jaiqal.telemetry.MeasurementEventBus
 import com.alad1nks.jaiqal.telemetry.PlantTelemetryService
 import io.ktor.http.HttpStatusCode
@@ -44,6 +45,7 @@ fun Route.userApi(
     sseConnectionLimiter: SseConnectionLimiter = SseConnectionLimiter(),
     clock: Clock = Clock.systemUTC(),
     securityAuditTrail: SecurityAuditTrail = SecurityAuditTrail.logging(),
+    accountDeletion: AccountDeletionService? = null,
 ) {
     route("/api/v1") {
         rateLimit(USER_API_RATE_LIMIT) {
@@ -63,6 +65,25 @@ fun Route.userApi(
                             emailVerified = principal.emailVerified,
                         ),
                     )
+                }
+                if (accountDeletion != null) {
+                    delete("/auth/me") {
+                        val principal = call.userPrincipal(allowDeleted = true)
+                        call.respond(
+                            call.auditedMutation(
+                                securityAuditTrail,
+                                principal.userId,
+                                SecurityAuditAction.DELETE_ACCOUNT,
+                                SecurityAuditTarget.USER_API,
+                                principal.userId,
+                            ) {
+                                if (!principal.deleted) {
+                                    accountDeletion.deleteAccount(principal.userId, principal.firebaseUid)
+                                }
+                                DeleteAccountResponse()
+                            },
+                        )
+                    }
                 }
                 route("/plants") {
                     get { call.respond(service.listPlants(call.userId())) }
@@ -234,9 +255,11 @@ private suspend fun io.ktor.server.application.ApplicationCall.legacyAuthGone() 
         message = "Password authentication is no longer available; use Firebase Authentication",
     )
 
-internal fun io.ktor.server.application.ApplicationCall.userPrincipal(): UserPrincipal =
-    principal<UserPrincipal>()
-        ?: throw com.alad1nks.jaiqal.users.UserApiException(401, "UNAUTHORIZED", "A valid user token is required")
+internal fun io.ktor.server.application.ApplicationCall.userPrincipal(
+    allowDeleted: Boolean = false,
+): UserPrincipal = principal<UserPrincipal>()
+    ?.takeIf { allowDeleted || !it.deleted }
+    ?: throw com.alad1nks.jaiqal.users.UserApiException(401, "UNAUTHORIZED", "A valid user token is required")
 
 internal fun io.ktor.server.application.ApplicationCall.userId(): UUID = userPrincipal().userId
 
