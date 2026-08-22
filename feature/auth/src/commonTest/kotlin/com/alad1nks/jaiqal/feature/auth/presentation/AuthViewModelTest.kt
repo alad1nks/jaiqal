@@ -4,6 +4,7 @@ import com.alad1nks.jaiqal.core.auth.AuthErrorCode
 import com.alad1nks.jaiqal.core.auth.AuthException
 import com.alad1nks.jaiqal.core.auth.FakeAuthProvider
 import com.alad1nks.jaiqal.core.auth.FederatedAuthMethod
+import com.alad1nks.jaiqal.core.auth.AuthState
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -114,6 +115,25 @@ class AuthViewModelTest {
 
         assertEquals(FederatedAuthMethod.APPLE, auth.lastFederatedAuthMethod)
         assertNull(viewModel.state.value.error)
+        assertNull(viewModel.state.value.loadingAction)
+    }
+
+    @Test
+    fun emailCollisionIsShownWithoutAutomaticProviderSwitchOrAccountMerge() = runTest(dispatcher) {
+        val auth = FakeAuthProvider().apply {
+            federatedFailure = AuthException(AuthErrorCode.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL)
+        }
+        val viewModel = AuthViewModel(auth)
+
+        viewModel.signInWithGoogle()
+        advanceUntilIdle()
+
+        assertEquals(
+            AuthErrorCode.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL,
+            viewModel.state.value.error,
+        )
+        assertEquals(listOf(FederatedAuthMethod.GOOGLE), auth.federatedAuthMethods)
+        assertEquals(AuthState.Unauthenticated, auth.authState.value)
         assertNull(viewModel.state.value.loadingAction)
     }
 }

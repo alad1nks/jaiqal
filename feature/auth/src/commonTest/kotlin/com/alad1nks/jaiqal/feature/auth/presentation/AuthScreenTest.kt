@@ -106,4 +106,26 @@ class AuthScreenTest {
         }
         onNodeWithTag(AuthUiTags.VERIFY_EMAIL).assertIsDisplayed()
     }
+
+    @Test
+    fun emailCollisionGuidanceIsExposedAsAnAuthenticationError() = runComposeUiTest {
+        setContent {
+            JaiqalTheme {
+                LoginContent(
+                    state = AuthFormUiState(
+                        error = AuthErrorCode.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL,
+                    ),
+                    onEmailChange = {},
+                    onPasswordChange = {},
+                    onSubmit = {},
+                    onGoogle = {},
+                    onApple = {},
+                    onRegister = {},
+                    onForgotPassword = {},
+                )
+            }
+        }
+
+        onNodeWithTag(AuthUiTags.ERROR).assertIsDisplayed()
+    }
 }
