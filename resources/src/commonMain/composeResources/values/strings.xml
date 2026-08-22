@@ -7,6 +7,9 @@
     <string name="email">Электронная почта</string>
     <string name="password">Пароль</string>
     <string name="sign_in">Войти</string>
+    <string name="auth_or">или</string>
+    <string name="continue_with_google">Продолжить с Google</string>
+    <string name="continue_with_apple">Продолжить с Apple</string>
     <string name="register">Создать аккаунт</string>
     <string name="register_message">Регистрация выполняется напрямую через Firebase.</string>
     <string name="forgot_password">Восстановить пароль</string>
@@ -29,6 +32,11 @@
     <string name="auth_error_network">Не удалось связаться с Firebase. Проверьте подключение.</string>
     <string name="auth_error_no_user">Текущая Firebase-сессия не найдена.</string>
     <string name="auth_error_not_configured">Firebase не настроен для этой сборки.</string>
+    <string name="auth_error_cancelled">Вход отменён.</string>
+    <string name="auth_error_provider_unavailable">Этот способ входа сейчас недоступен. Попробуйте другой.</string>
+    <string name="auth_error_account_exists_with_different_credential">Аккаунт с этой почтой уже создан другим способом. Войдите ранее использованным способом.</string>
+    <string name="auth_error_credential_already_in_use">Эти данные входа уже связаны с другим аккаунтом.</string>
+    <string name="auth_error_invalid_nonce">Не удалось безопасно завершить вход через Apple. Попробуйте ещё раз.</string>
     <string name="auth_error_unknown">Не удалось выполнить операцию. Попробуйте ещё раз.</string>
     <string name="backend_auth_error_title">Не удалось открыть аккаунт</string>
     <string name="backend_auth_error_message">Firebase-сессия активна, но backend не подтвердил внутренний профиль.</string>

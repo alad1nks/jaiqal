@@ -1,7 +1,9 @@
 package com.alad1nks.jaiqal.feature.auth.presentation
 
 import com.alad1nks.jaiqal.core.auth.AuthErrorCode
+import com.alad1nks.jaiqal.core.auth.AuthException
 import com.alad1nks.jaiqal.core.auth.FakeAuthProvider
+import com.alad1nks.jaiqal.core.auth.FederatedAuthMethod
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -11,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -81,5 +84,36 @@ class AuthViewModelTest {
 
         assertEquals(AuthErrorCode.WEAK_PASSWORD, viewModel.state.value.error)
         assertNull(auth.lastEmail)
+    }
+
+    @Test
+    fun federatedActionTracksProviderAndBlocksDuplicateTaps() = runTest(dispatcher) {
+        val auth = FakeAuthProvider().apply { federatedSignInDelayMillis = 1_000 }
+        val viewModel = AuthViewModel(auth)
+
+        viewModel.signInWithGoogle()
+        assertEquals(AuthAction.GOOGLE, viewModel.state.value.loadingAction)
+
+        viewModel.signInWithApple()
+        runCurrent()
+        advanceUntilIdle()
+
+        assertEquals(FederatedAuthMethod.GOOGLE, auth.lastFederatedAuthMethod)
+        assertNull(viewModel.state.value.loadingAction)
+    }
+
+    @Test
+    fun providerCancellationIsNotShownAsCriticalError() = runTest(dispatcher) {
+        val auth = FakeAuthProvider().apply {
+            federatedFailure = AuthException(AuthErrorCode.CANCELLED)
+        }
+        val viewModel = AuthViewModel(auth)
+
+        viewModel.signInWithApple()
+        advanceUntilIdle()
+
+        assertEquals(FederatedAuthMethod.APPLE, auth.lastFederatedAuthMethod)
+        assertNull(viewModel.state.value.error)
+        assertNull(viewModel.state.value.loadingAction)
     }
 }

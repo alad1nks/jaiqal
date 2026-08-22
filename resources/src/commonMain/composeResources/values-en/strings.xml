@@ -7,6 +7,9 @@
     <string name="email">Email</string>
     <string name="password">Password</string>
     <string name="sign_in">Sign in</string>
+    <string name="auth_or">or</string>
+    <string name="continue_with_google">Continue with Google</string>
+    <string name="continue_with_apple">Continue with Apple</string>
     <string name="register">Create account</string>
     <string name="register_message">Registration is handled directly by Firebase.</string>
     <string name="forgot_password">Reset password</string>
@@ -29,6 +32,11 @@
     <string name="auth_error_network">Could not reach Firebase. Check your connection.</string>
     <string name="auth_error_no_user">No current Firebase session was found.</string>
     <string name="auth_error_not_configured">Firebase is not configured for this build.</string>
+    <string name="auth_error_cancelled">Sign-in was cancelled.</string>
+    <string name="auth_error_provider_unavailable">This sign-in method is currently unavailable. Try another method.</string>
+    <string name="auth_error_account_exists_with_different_credential">An account with this email already uses another sign-in method. Sign in with the method you used before.</string>
+    <string name="auth_error_credential_already_in_use">These sign-in credentials are already linked to another account.</string>
+    <string name="auth_error_invalid_nonce">Apple sign-in could not be completed securely. Try again.</string>
     <string name="auth_error_unknown">The operation failed. Try again.</string>
     <string name="backend_auth_error_title">Could not open account</string>
     <string name="backend_auth_error_message">The Firebase session is active, but the backend did not confirm the internal profile.</string>
