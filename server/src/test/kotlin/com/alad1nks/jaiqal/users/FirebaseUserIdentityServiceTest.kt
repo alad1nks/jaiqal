@@ -5,12 +5,14 @@ import com.alad1nks.jaiqal.infrastructure.security.SecurityAuditAction
 import com.alad1nks.jaiqal.infrastructure.security.SecurityAuditEvent
 import com.alad1nks.jaiqal.infrastructure.security.SecurityAuditResult
 import com.alad1nks.jaiqal.infrastructure.security.SecurityAuditTrail
+import com.alad1nks.jaiqal.infrastructure.security.toStructuredMessage
 import org.junit.Test
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 
 class FirebaseUserIdentityServiceTest {
@@ -77,6 +79,9 @@ class FirebaseUserIdentityServiceTest {
         assertEquals(created.id, events.single().actorUserId)
         assertEquals("request-17", events.single().requestId)
         assertEquals(6, SecurityAuditEvent::class.java.declaredFields.size)
+        val serializedEvent = events.single().toStructuredMessage()
+        assertFalse(serializedEvent.contains("sensitive-firebase-uid"))
+        assertFalse(serializedEvent.contains("secret@example.test"))
     }
 
     @Test
