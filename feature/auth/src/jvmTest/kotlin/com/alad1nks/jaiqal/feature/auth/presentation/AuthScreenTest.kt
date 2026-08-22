@@ -22,6 +22,8 @@ class AuthScreenTest {
         var submits = 0
         var googleClicks = 0
         var appleClicks = 0
+        var registerClicks = 0
+        var forgotPasswordClicks = 0
         setContent {
             JaiqalTheme {
                 LoginContent(
@@ -31,8 +33,8 @@ class AuthScreenTest {
                     onSubmit = { submits++ },
                     onGoogle = { googleClicks++ },
                     onApple = { appleClicks++ },
-                    onRegister = {},
-                    onForgotPassword = {},
+                    onRegister = { registerClicks++ },
+                    onForgotPassword = { forgotPasswordClicks++ },
                 )
             }
         }
@@ -43,12 +45,16 @@ class AuthScreenTest {
         onNodeWithTag(AuthUiTags.SUBMIT).performClick()
         onNodeWithTag(AuthUiTags.GOOGLE).performClick()
         onNodeWithTag(AuthUiTags.APPLE).performClick()
+        onNodeWithTag(AuthUiTags.REGISTER_ACTION).performClick()
+        onNodeWithTag(AuthUiTags.FORGOT_PASSWORD).performClick()
 
         assertEquals("owner@example.com", email.value)
         assertEquals("secret", password.value)
         assertEquals(1, submits)
         assertEquals(1, googleClicks)
         assertEquals(1, appleClicks)
+        assertEquals(1, registerClicks)
+        assertEquals(1, forgotPasswordClicks)
     }
 
     @Test
