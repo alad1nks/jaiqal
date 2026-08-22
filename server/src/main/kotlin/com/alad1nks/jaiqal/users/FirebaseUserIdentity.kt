@@ -28,8 +28,19 @@ data class UserIdentityRecord(
 interface UserIdentityStore {
     fun findUserByIdentity(provider: String, externalSubject: String): UserRecord?
 
+    fun deletedIdentityOwner(provider: String, externalSubject: String): UUID? = null
+
     /** Atomically creates both records. Implementations must make a same-identity race idempotent. */
     fun createUserWithIdentity(user: UserRecord, identity: UserIdentityRecord): UserRecord
+}
+
+fun interface AccountDeletionStore {
+    /** Atomically tombstones the Firebase identity and removes all account-owned data. */
+    fun deleteAccount(userId: UUID, firebaseUid: String)
+}
+
+class AccountDeletionService(private val store: AccountDeletionStore) {
+    fun deleteAccount(userId: UUID, firebaseUid: String) = store.deleteAccount(userId, firebaseUid)
 }
 
 class FirebaseUserIdentityService(
@@ -39,6 +50,9 @@ class FirebaseUserIdentityService(
     private val securityAuditTrail: SecurityAuditTrail = SecurityAuditTrail.logging(),
 ) {
     fun resolve(token: VerifiedFirebaseToken, requestId: String? = null): UserRecord {
+        store.deletedIdentityOwner(FIREBASE_IDENTITY_PROVIDER, token.uid)?.let { ownerId ->
+            throw DeletedFirebaseIdentityException(ownerId)
+        }
         store.findUserByIdentity(FIREBASE_IDENTITY_PROVIDER, token.uid)?.let { return it }
         if (!autoProvisionUsers) {
             recordProvisioning(SecurityAuditResult.REJECTED, requestId = requestId)
@@ -92,4 +106,8 @@ class UnknownFirebaseIdentityException : RuntimeException(
 class FirebaseIdentityConflictException(cause: Throwable? = null) : RuntimeException(
     "Firebase identity could not be provisioned",
     cause,
+)
+
+class DeletedFirebaseIdentityException(val userId: UUID) : RuntimeException(
+    "Firebase identity belongs to a deleted account",
 )

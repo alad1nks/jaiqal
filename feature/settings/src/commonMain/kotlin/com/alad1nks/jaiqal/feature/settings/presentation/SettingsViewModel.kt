@@ -6,10 +6,13 @@ import com.alad1nks.jaiqal.core.auth.AuthErrorCode
 import com.alad1nks.jaiqal.core.auth.AuthException
 import com.alad1nks.jaiqal.core.auth.AuthProvider
 import com.alad1nks.jaiqal.core.auth.AuthState
+import com.alad1nks.jaiqal.core.auth.AccountAuthMethod
+import com.alad1nks.jaiqal.core.auth.AccountDeletionCoordinator
 import com.alad1nks.jaiqal.core.auth.UserSession
 import com.alad1nks.jaiqal.core.auth.UserSessionStore
 import com.alad1nks.jaiqal.core.config.AppInfo
 import com.alad1nks.jaiqal.core.network.BackendConfig
+import com.alad1nks.jaiqal.core.network.ApiException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,7 +21,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-enum class SettingsUiError { NETWORK, TOO_MANY_REQUESTS, NO_USER, UNKNOWN }
+enum class SettingsUiError { NETWORK, TOO_MANY_REQUESTS, NO_USER, INVALID_CREDENTIALS, UNKNOWN }
 
 data class SettingsUiState(
     val user: UserSession? = null,
@@ -29,6 +32,9 @@ data class SettingsUiState(
     val isSendingVerification: Boolean = false,
     val verificationSent: Boolean = false,
     val isSigningOut: Boolean = false,
+    val authMethod: AccountAuthMethod = AccountAuthMethod.UNKNOWN,
+    val showDeleteConfirmation: Boolean = false,
+    val isDeletingAccount: Boolean = false,
     val error: SettingsUiError? = null,
 )
 
@@ -43,6 +49,7 @@ class SettingsViewModel(
     appInfo: AppInfo,
     private val authProvider: AuthProvider,
     userSessionStore: UserSessionStore,
+    private val accountDeletion: AccountDeletionCoordinator,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(
         SettingsUiState(
@@ -67,6 +74,8 @@ class SettingsViewModel(
                             emailVerified = (auth as? AuthState.Authenticated)?.emailVerified
                                 ?: session?.emailVerified
                                 ?: false,
+                            authMethod = (auth as? AuthState.Authenticated)?.method
+                                ?: AccountAuthMethod.UNKNOWN,
                         )
                     }
                 }
@@ -103,11 +112,51 @@ class SettingsViewModel(
             }
         }
     }
+
+    fun requestAccountDeletion() {
+        if (mutableState.value.isDeletingAccount) return
+        mutableState.update { it.copy(showDeleteConfirmation = true, error = null) }
+    }
+
+    fun cancelAccountDeletion() {
+        if (mutableState.value.isDeletingAccount) return
+        mutableState.update { it.copy(showDeleteConfirmation = false, error = null) }
+    }
+
+    fun confirmAccountDeletion(password: String?) {
+        if (mutableState.value.isDeletingAccount) return
+        viewModelScope.launch {
+            mutableState.update { it.copy(isDeletingAccount = true, error = null) }
+            try {
+                accountDeletion.deleteAccount(password)
+                mutableState.update {
+                    it.copy(isDeletingAccount = false, showDeleteConfirmation = false)
+                }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (failure: Throwable) {
+                val cancelled = (failure as? AuthException)?.code == AuthErrorCode.CANCELLED
+                mutableState.update {
+                    it.copy(
+                        isDeletingAccount = false,
+                        error = if (cancelled) null else failure.toSettingsError(),
+                    )
+                }
+            }
+        }
+    }
 }
 
-private fun Throwable.toSettingsError(): SettingsUiError = when ((this as? AuthException)?.code) {
-    AuthErrorCode.NETWORK -> SettingsUiError.NETWORK
-    AuthErrorCode.TOO_MANY_REQUESTS -> SettingsUiError.TOO_MANY_REQUESTS
-    AuthErrorCode.NO_CURRENT_USER -> SettingsUiError.NO_USER
-    else -> SettingsUiError.UNKNOWN
+private fun Throwable.toSettingsError(): SettingsUiError {
+    val authError = (this as? AuthException)?.code
+    return when {
+        authError == AuthErrorCode.NETWORK -> SettingsUiError.NETWORK
+        authError == AuthErrorCode.TOO_MANY_REQUESTS -> SettingsUiError.TOO_MANY_REQUESTS
+        authError == AuthErrorCode.NO_CURRENT_USER -> SettingsUiError.NO_USER
+        authError == AuthErrorCode.INVALID_CREDENTIALS ||
+            authError == AuthErrorCode.REAUTHENTICATION_REQUIRED -> SettingsUiError.INVALID_CREDENTIALS
+        this is ApiException.Connectivity || this is ApiException.Timeout -> SettingsUiError.NETWORK
+        this is ApiException.Backend && statusCode == 429 -> SettingsUiError.TOO_MANY_REQUESTS
+        else -> SettingsUiError.UNKNOWN
+    }
 }

@@ -9,4 +9,5 @@ data class UserPrincipal(
     val email: String?,
     val emailVerified: Boolean,
     val expiresAt: Instant,
+    val deleted: Boolean = false,
 )

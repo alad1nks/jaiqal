@@ -10,6 +10,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import com.alad1nks.jaiqal.core.auth.AuthProvider
 import com.alad1nks.jaiqal.core.auth.AuthState
+import com.alad1nks.jaiqal.core.auth.AccountDeletionCoordinator
 import com.alad1nks.jaiqal.core.auth.CurrentUserGateway
 import com.alad1nks.jaiqal.core.auth.UserSessionStore
 import com.alad1nks.jaiqal.api.contract.CurrentUserResponse
@@ -57,6 +58,7 @@ class AppViewModel(
     private val offlineCache: OfflineCache,
     private val appPreferences: AppPreferences = InMemoryAppPreferences(),
     private val crashReporter: CrashReporter = NoOpCrashReporter,
+    private val accountDeletion: AccountDeletionCoordinator? = null,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(AppUiState())
     val state: StateFlow<AppUiState> = mutableState.asStateFlow()
@@ -104,10 +106,24 @@ class AppViewModel(
                         it.copy(session = SessionState.EMAIL_VERIFICATION_REQUIRED)
                     }
                 } else {
-                    synchronizeBackendSession()
+                    if (recoverPendingDeletion()) {
+                        mutableState.update { it.copy(session = SessionState.UNAUTHENTICATED) }
+                    } else {
+                        synchronizeBackendSession()
+                    }
                 }
             }
         }
+    }
+
+    private suspend fun recoverPendingDeletion(): Boolean = try {
+        accountDeletion?.recoverPendingDeletion() == true
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (_: Throwable) {
+        userSessionStore.clear()
+        mutableState.update { it.copy(session = SessionState.ERROR) }
+        true
     }
 
     private suspend fun synchronizeBackendSession() {
@@ -141,7 +157,7 @@ class AppViewModel(
         synchronizationJob = viewModelScope.launch {
             val authState = authProvider.authState.value
             if (authState is AuthState.Authenticated && authState.emailVerified) {
-                synchronizeBackendSession()
+                if (!recoverPendingDeletion()) synchronizeBackendSession()
             }
         }
     }

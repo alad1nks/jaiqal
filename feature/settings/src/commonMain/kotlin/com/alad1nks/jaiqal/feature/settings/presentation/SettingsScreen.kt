@@ -10,18 +10,27 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import com.alad1nks.jaiqal.core.auth.AccountAuthMethod
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.alad1nks.jaiqal.core.designsystem.component.JaiqalButton
 import com.alad1nks.jaiqal.core.designsystem.component.JaiqalCard
@@ -39,6 +48,10 @@ import org.koin.compose.viewmodel.koinViewModel
 object SettingsUiTags {
     fun language(language: AppLanguage) = "settings.language.${language.name.lowercase()}"
     fun theme(theme: ThemeMode) = "settings.theme.${theme.name.lowercase()}"
+    const val DELETE_ACCOUNT = "settings.delete_account"
+    const val DELETE_DIALOG = "settings.delete_account.dialog"
+    const val DELETE_PASSWORD = "settings.delete_account.password"
+    const val DELETE_CONFIRM = "settings.delete_account.confirm"
 }
 
 @Composable
@@ -51,6 +64,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var deletionPassword by remember(state.showDeleteConfirmation) { mutableStateOf("") }
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
             .padding(JaiqalTheme.spacing.medium),
@@ -119,6 +133,54 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth(),
             enabled = !state.isSigningOut,
         )
+        OutlinedButton(
+            onClick = viewModel::requestAccountDeletion,
+            modifier = Modifier.fillMaxWidth().testTag(SettingsUiTags.DELETE_ACCOUNT),
+            enabled = !state.isDeletingAccount,
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+        ) {
+            Text(stringResource(Res.string.delete_account))
+        }
+    }
+    if (state.showDeleteConfirmation) {
+        AlertDialog(
+            modifier = Modifier.testTag(SettingsUiTags.DELETE_DIALOG),
+            onDismissRequest = viewModel::cancelAccountDeletion,
+            title = { Text(stringResource(Res.string.delete_account_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(JaiqalTheme.spacing.small)) {
+                    Text(stringResource(Res.string.delete_account_warning))
+                    Text(stringResource(Res.string.delete_account_reauthenticate))
+                    if (state.authMethod == AccountAuthMethod.PASSWORD) {
+                        OutlinedTextField(
+                            value = deletionPassword,
+                            onValueChange = { deletionPassword = it },
+                            modifier = Modifier.fillMaxWidth().testTag(SettingsUiTags.DELETE_PASSWORD),
+                            label = { Text(stringResource(Res.string.password)) },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            enabled = !state.isDeletingAccount,
+                        )
+                    }
+                    if (state.isDeletingAccount) CircularProgressIndicator()
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { viewModel.confirmAccountDeletion(deletionPassword.takeIf(String::isNotBlank)) },
+                    modifier = Modifier.testTag(SettingsUiTags.DELETE_CONFIRM),
+                    enabled = !state.isDeletingAccount &&
+                        (state.authMethod != AccountAuthMethod.PASSWORD || deletionPassword.isNotBlank()),
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text(stringResource(Res.string.delete_account_confirm)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = viewModel::cancelAccountDeletion,
+                    enabled = !state.isDeletingAccount,
+                ) { Text(stringResource(Res.string.cancel)) }
+            },
+        )
     }
 }
 
@@ -163,6 +225,7 @@ private fun settingsErrorMessage(error: SettingsUiError): String = stringResourc
         SettingsUiError.NETWORK -> Res.string.settings_network_error
         SettingsUiError.TOO_MANY_REQUESTS -> Res.string.settings_too_many_requests
         SettingsUiError.NO_USER -> Res.string.settings_no_user
+        SettingsUiError.INVALID_CREDENTIALS -> Res.string.settings_invalid_credentials
         SettingsUiError.UNKNOWN -> Res.string.settings_unknown_error
     },
 )

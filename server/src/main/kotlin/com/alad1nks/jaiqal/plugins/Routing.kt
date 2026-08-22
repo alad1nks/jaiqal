@@ -12,6 +12,7 @@ import com.alad1nks.jaiqal.telemetry.TelemetryValidationException
 import com.alad1nks.jaiqal.telemetry.TelemetryQuotaExceededException
 import com.alad1nks.jaiqal.telemetry.DeviceQuarantinedException
 import com.alad1nks.jaiqal.users.UserApplicationService
+import com.alad1nks.jaiqal.users.AccountDeletionService
 import com.alad1nks.jaiqal.telemetry.MeasurementEventBus
 import com.alad1nks.jaiqal.telemetry.PlantTelemetryService
 import com.alad1nks.jaiqal.alerts.AlertService
@@ -46,6 +47,7 @@ fun Application.configureRouting(
     httpLimits: HttpLimitConfig = HttpLimitConfig(),
     alerts: AlertService? = null,
     securityAuditTrail: SecurityAuditTrail = SecurityAuditTrail.logging(),
+    accountDeletion: AccountDeletionService? = null,
 ) {
     val sseConnectionLimiter = SseConnectionLimiter(
         maxConnectionsPerUser = httpLimits.sseMaxConnectionsPerUser,
@@ -97,6 +99,7 @@ fun Application.configureRouting(
                 alerts,
                 sseConnectionLimiter,
                 securityAuditTrail = securityAuditTrail,
+                accountDeletion = accountDeletion,
             )
         }
     }

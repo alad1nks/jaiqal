@@ -8,6 +8,8 @@ import kotlinx.serialization.Serializable
     val emailVerified: Boolean,
 )
 
+@Serializable data class DeleteAccountResponse(val deleted: Boolean = true)
+
 @Serializable data class CreatePlantRequest(val name: String, val species: String? = null, val imageUrl: String? = null)
 @Serializable data class UpdatePlantRequest(val name: String? = null, val species: String? = null, val imageUrl: String? = null)
 @Serializable data class PlantResponse(

@@ -210,6 +210,12 @@ DELETE FROM cached_alert_rule WHERE account_id = ?;
 selectAppPreferences:
 SELECT * FROM app_preference ORDER BY preference_key;
 
+selectAppPreference:
+SELECT preference_value FROM app_preference WHERE preference_key = ?;
+
 upsertAppPreference:
 INSERT OR REPLACE INTO app_preference(preference_key, preference_value)
 VALUES (?, ?);
+
+deleteAppPreference:
+DELETE FROM app_preference WHERE preference_key = ?;

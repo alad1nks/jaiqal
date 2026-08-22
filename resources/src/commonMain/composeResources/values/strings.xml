@@ -212,4 +212,10 @@
     <string name="settings_too_many_requests">Слишком много запросов. Попробуйте позднее.</string>
     <string name="settings_no_user">Текущая Firebase-сессия не найдена.</string>
     <string name="settings_unknown_error">Не удалось выполнить действие. Попробуйте ещё раз.</string>
+    <string name="settings_invalid_credentials">Не удалось подтвердить личность. Проверьте данные входа и повторите попытку.</string>
+    <string name="delete_account">Удалить аккаунт</string>
+    <string name="delete_account_title">Удалить аккаунт навсегда?</string>
+    <string name="delete_account_warning">Будут безвозвратно удалены аккаунт, растения, устройства, измерения и оповещения.</string>
+    <string name="delete_account_reauthenticate">Для продолжения подтвердите личность текущим способом входа.</string>
+    <string name="delete_account_confirm">Удалить навсегда</string>
 </resources>

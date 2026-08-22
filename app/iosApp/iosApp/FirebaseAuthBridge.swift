@@ -14,6 +14,7 @@ final class AppleFirebaseAuthBridge: NSObject, IosFirebaseAuthBridge {
     private var appleCompletion: ((String?) -> Void)?
     private var appleAuthorizationController: ASAuthorizationController?
     private var applePresentationAnchor: ASPresentationAnchor?
+    private var appleDeletionReauthentication = false
 
     func addAuthStateListener(listener: @escaping (IosFirebaseUser?) -> Void) -> IosAuthStateSubscription {
         let handle = Auth.auth().addStateDidChangeListener { _, user in
@@ -103,8 +104,57 @@ final class AppleFirebaseAuthBridge: NSObject, IosFirebaseAuthBridge {
         }
     }
 
+    func reauthenticateForAccountDeletion(
+        password: String?,
+        completion: @escaping (String?) -> Void
+    ) {
+        guard let user = Auth.auth().currentUser else {
+            completion("no-current-user")
+            return
+        }
+        let providers = Set(user.providerData.map(\.providerID))
+        if providers.contains("password") {
+            guard let email = user.email,
+                  let password,
+                  !password.isEmpty else {
+                completion("invalid-credentials")
+                return
+            }
+            let credential = EmailAuthProvider.credential(withEmail: email, password: password)
+            user.reauthenticate(with: credential) { _, error in
+                completion(Self.stableErrorCode(error))
+            }
+        } else if providers.contains("google.com") {
+            reauthenticateWithGoogle(completion: completion)
+        } else if providers.contains("apple.com") {
+            signInWithApple(forDeletion: true, completion: completion)
+        } else {
+            completion("provider-unavailable")
+        }
+    }
+
+    func deleteCurrentUser(completion: @escaping (String?) -> Void) {
+        guard let user = Auth.auth().currentUser else {
+            completion("no-current-user")
+            return
+        }
+        user.delete { error in completion(Self.stableErrorCode(error)) }
+    }
+
     private static func sharedUser(_ user: User) -> IosFirebaseUser {
-        IosFirebaseUser(email: user.email, emailVerified: user.isEmailVerified)
+        IosFirebaseUser(
+            email: user.email,
+            emailVerified: user.isEmailVerified,
+            method: sharedAuthMethod(user)
+        )
+    }
+
+    private static func sharedAuthMethod(_ user: User) -> AccountAuthMethod {
+        let providers = Set(user.providerData.map(\.providerID))
+        if providers.contains("password") { return .password }
+        if providers.contains("google.com") { return .google }
+        if providers.contains("apple.com") { return .apple }
+        return .unknown
     }
 
     private func signInWithGoogle(completion: @escaping (String?) -> Void) {
@@ -157,12 +207,59 @@ final class AppleFirebaseAuthBridge: NSObject, IosFirebaseAuthBridge {
         }
     }
 
+    private func reauthenticateWithGoogle(completion: @escaping (String?) -> Void) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self,
+                  !self.googleSignInInProgress,
+                  self.appleCompletion == nil,
+                  let currentUser = Auth.auth().currentUser,
+                  let clientID = FirebaseApp.app()?.options.clientID,
+                  !clientID.isEmpty,
+                  let presenter = Self.presentingViewController() else {
+                completion("provider-unavailable")
+                return
+            }
+
+            self.googleSignInInProgress = true
+            GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
+            GIDSignIn.sharedInstance.signIn(withPresenting: presenter) { result, error in
+                if let error {
+                    self.finishGoogleSignIn(
+                        errorCode: Self.stableGoogleSignInErrorCode(error),
+                        completion: completion
+                    )
+                    return
+                }
+                guard let googleUser = result?.user,
+                      let idToken = googleUser.idToken?.tokenString,
+                      !idToken.isEmpty,
+                      !googleUser.accessToken.tokenString.isEmpty else {
+                    self.finishGoogleSignIn(errorCode: "invalid-credentials", completion: completion)
+                    return
+                }
+                let credential = GoogleAuthProvider.credential(
+                    withIDToken: idToken,
+                    accessToken: googleUser.accessToken.tokenString
+                )
+                currentUser.reauthenticate(with: credential) { _, firebaseError in
+                    self.finishGoogleSignIn(
+                        errorCode: Self.stableErrorCode(firebaseError),
+                        completion: completion
+                    )
+                }
+            }
+        }
+    }
+
     private func finishGoogleSignIn(errorCode: String?, completion: @escaping (String?) -> Void) {
         googleSignInInProgress = false
         completion(errorCode)
     }
 
-    private func signInWithApple(completion: @escaping (String?) -> Void) {
+    private func signInWithApple(
+        forDeletion: Bool = false,
+        completion: @escaping (String?) -> Void
+    ) {
         DispatchQueue.main.async { [weak self] in
             guard let self else {
                 completion("provider-unavailable")
@@ -182,6 +279,7 @@ final class AppleFirebaseAuthBridge: NSObject, IosFirebaseAuthBridge {
 
             let controller = ASAuthorizationController(authorizationRequests: [request])
             self.appleRawNonce = rawNonce
+            self.appleDeletionReauthentication = forDeletion
             self.appleCompletion = completion
             self.appleAuthorizationController = controller
             self.applePresentationAnchor = presentationAnchor
@@ -197,6 +295,7 @@ final class AppleFirebaseAuthBridge: NSObject, IosFirebaseAuthBridge {
         appleCompletion = nil
         appleAuthorizationController = nil
         applePresentationAnchor = nil
+        appleDeletionReauthentication = false
         completion?(errorCode)
     }
 
@@ -301,6 +400,8 @@ final class AppleFirebaseAuthBridge: NSObject, IosFirebaseAuthBridge {
             return "credential-already-in-use"
         case .missingOrInvalidNonce:
             return "invalid-nonce"
+        case .requiresRecentLogin:
+            return "reauthentication-required"
         default:
             return "unknown"
         }
@@ -334,8 +435,27 @@ extension AppleFirebaseAuthBridge: ASAuthorizationControllerDelegate,
             rawNonce: rawNonce,
             fullName: appleCredential.fullName
         )
-        Auth.auth().signIn(with: credential) { _, error in
-            self.finishAppleSignIn(errorCode: Self.stableErrorCode(error))
+        if appleDeletionReauthentication {
+            guard let authorizationCode = appleCredential.authorizationCode,
+                  let code = String(data: authorizationCode, encoding: .utf8),
+                  !code.isEmpty,
+                  let currentUser = Auth.auth().currentUser else {
+                finishAppleSignIn(errorCode: "invalid-credentials")
+                return
+            }
+            currentUser.reauthenticate(with: credential) { _, reauthenticationError in
+                if let errorCode = Self.stableErrorCode(reauthenticationError) {
+                    self.finishAppleSignIn(errorCode: errorCode)
+                    return
+                }
+                Auth.auth().revokeToken(withAuthorizationCode: code) { revocationError in
+                    self.finishAppleSignIn(errorCode: Self.stableErrorCode(revocationError))
+                }
+            }
+        } else {
+            Auth.auth().signIn(with: credential) { _, error in
+                self.finishAppleSignIn(errorCode: Self.stableErrorCode(error))
+            }
         }
     }
 

@@ -336,6 +336,7 @@ private fun AuthErrorText(error: AuthErrorCode) {
             Res.string.auth_error_account_exists_with_different_credential
         AuthErrorCode.CREDENTIAL_ALREADY_IN_USE -> Res.string.auth_error_credential_already_in_use
         AuthErrorCode.INVALID_NONCE -> Res.string.auth_error_invalid_nonce
+        AuthErrorCode.REAUTHENTICATION_REQUIRED -> Res.string.auth_error_invalid_credentials
         AuthErrorCode.UNKNOWN -> Res.string.auth_error_unknown
     }
     Text(

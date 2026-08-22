@@ -288,6 +288,8 @@ The shared client obtains the ID Token from Firebase Authentication for every pr
 
 `GET /api/v1/auth/me` returns the authenticated internal user's UUID, email, and email-verification status. It does not expose the Firebase UID, ID Token, auth claims, or server credentials. Health endpoints continue to return only service/database readiness state.
 
+`DELETE /api/v1/auth/me` atomically tombstones the SHA-256 hash of the Firebase UID and removes the internal user together with owned plants, devices, measurements, latest state, alerts, outbox rows, and related account data. The operation is idempotent and a tombstoned Firebase identity cannot be automatically provisioned again. The endpoint returns the standard JSON contract and all failures continue through the shared `ApiErrorResponse`/`StatusPages` handling.
+
 ### Manual Firebase setup
 
 1. Create or select a Firebase project.
@@ -349,6 +351,7 @@ The device is identified only by the token. Sequences are idempotent per device;
 
 - Health: `GET /health/live`, `GET /health/ready`
 - Current user: `GET /api/v1/auth/me` with a Firebase ID Token
+- Account deletion: `DELETE /api/v1/auth/me` with a Firebase ID Token
 - Disabled legacy authentication: `POST /api/v1/auth/{register,login,refresh,logout}` returns `410 Gone`
 - Plants: CRUD under `/api/v1/plants`
 - Devices: claim, list, update, calibrate, rotate token, and restore temporary quarantine under `/api/v1/devices`
@@ -426,7 +429,7 @@ Device claiming uses only the authenticated user endpoint and a manually entered
 
 The alerts tab reads active and recovered events from the account-scoped offline cache and refreshes every owned plant from the backend. Acknowledgement and rule replacement are server-first and never fabricate an offline success. Rule drafts validate the same threshold and duration ranges as the backend and remain editable after rejection; reset restores the last server-backed values. The current alert-event DTO does not expose the measured value or historical threshold, so the client states that limitation instead of presenting the current rule as historical event data.
 
-Settings persist non-secret language (`system`, `kk`, `ru`, or `en`) and theme (`system`, `light`, or `dark`) preferences in SQLDelight. The screen also exposes account and email-verification state, resend verification, logout, app version, and an optional privacy-policy link; non-secret diagnostics are debug-only. Russian is the default resource locale, and complete Kazakh and English resource sets cover all client screens. Configure the Android privacy URL with `-PJAIQAL_PRIVACY_POLICY_URL=https://example.com/privacy` and the iOS URL with `PRIVACY_POLICY_URL` in `app/iosApp/Configuration/Config.xcconfig`; an empty value produces a localized placeholder.
+Settings persist non-secret language (`system`, `kk`, `ru`, or `en`) and theme (`system`, `light`, or `dark`) preferences in SQLDelight. The screen also exposes account and email-verification state, resend verification, logout, permanent account deletion, app version, and an optional privacy-policy link; non-secret diagnostics are debug-only. Deletion requires an explicit destructive confirmation and recent authentication with the current password, Google, or Apple method. The client persists a recovery marker, deletes server data first, clears the account-scoped cache, and then deletes the Firebase user. A retry, including after an app restart, safely repeats the idempotent server request and resumes cleanup. On iOS, Apple reauthentication obtains a fresh authorization code and revokes the Apple token before deletion. Russian is the default resource locale, and complete Kazakh and English resource sets cover all client screens. Configure the Android privacy URL with `-PJAIQAL_PRIVACY_POLICY_URL=https://example.com/privacy` and the iOS URL with `PRIVACY_POLICY_URL` in `app/iosApp/Configuration/Config.xcconfig`; an empty value produces a localized placeholder.
 
 Crashlytics is integrated for Android and iOS with collection disabled in debug and release mapping/dSYM upload configured. Common non-fatal reporting accepts only deduplicated, non-personal issue codes; credentials, tokens, email addresses, and user IDs are never passed to it. Firebase Messaging is intentionally not linked because the backend has no user push-token registration endpoint. The common `PushTokenRegistrar` boundary and the required backend contract are documented in [`docs/frontend.md`](docs/frontend.md); FCM/APNs permission, token, rotation, logout deactivation, and notification deep links must wait for that API.
 

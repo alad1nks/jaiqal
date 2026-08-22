@@ -61,6 +61,10 @@ POST {{baseUrl}}/api/v1/auth/logout
 GET {{baseUrl}}/api/v1/auth/me
 Authorization: Bearer {{firebaseIdToken}}
 
+### Permanently delete current account (destructive and idempotent)
+DELETE {{baseUrl}}/api/v1/auth/me
+Authorization: Bearer {{firebaseIdToken}}
+
 ### Create plant
 POST {{baseUrl}}/api/v1/plants
 Authorization: Bearer {{firebaseIdToken}}

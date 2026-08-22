@@ -10,6 +10,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 data class IosFirebaseUser(
     val email: String?,
     val emailVerified: Boolean,
+    val method: AccountAuthMethod = AccountAuthMethod.UNKNOWN,
 )
 
 interface IosAuthStateSubscription {
@@ -26,6 +27,8 @@ interface IosFirebaseAuthBridge {
     fun reloadUser(completion: (IosFirebaseUser?, String?) -> Unit)
     fun getIdToken(forceRefresh: Boolean, completion: (String?, String?) -> Unit)
     fun signOut(): String?
+    fun reauthenticateForAccountDeletion(password: String?, completion: (String?) -> Unit)
+    fun deleteCurrentUser(completion: (String?) -> Unit)
 }
 
 class IosFirebaseAuthProvider(
@@ -83,6 +86,15 @@ class IosFirebaseAuthProvider(
         mutableAuthState.value = AuthState.Unauthenticated
     }
 
+    override suspend fun reauthenticateForAccountDeletion(password: String?) = awaitError { completion ->
+        bridge.reauthenticateForAccountDeletion(password, completion)
+    }
+
+    override suspend fun deleteCurrentUser() {
+        awaitError(bridge::deleteCurrentUser)
+        mutableAuthState.value = AuthState.Unauthenticated
+    }
+
     private suspend fun awaitError(action: (((String?) -> Unit)) -> Unit) =
         suspendCancellableCoroutine { continuation ->
             action { errorCode ->
@@ -96,7 +108,7 @@ class IosFirebaseAuthProvider(
 private fun IosFirebaseUser?.toAuthState(): AuthState = if (this == null) {
     AuthState.Unauthenticated
 } else {
-    AuthState.Authenticated(email, emailVerified)
+    AuthState.Authenticated(email, emailVerified, method)
 }
 
 private fun String.toAuthException(): AuthException = AuthException(
@@ -114,6 +126,7 @@ private fun String.toAuthException(): AuthException = AuthException(
         "account-exists-with-different-credential" -> AuthErrorCode.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL
         "credential-already-in-use" -> AuthErrorCode.CREDENTIAL_ALREADY_IN_USE
         "invalid-nonce" -> AuthErrorCode.INVALID_NONCE
+        "reauthentication-required" -> AuthErrorCode.REAUTHENTICATION_REQUIRED
         else -> AuthErrorCode.UNKNOWN
     },
 )
