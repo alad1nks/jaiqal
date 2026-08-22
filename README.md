@@ -277,6 +277,34 @@ The schema covers users and external identities, plants, devices, one-time devic
 
 An IntelliJ HTTP Client collection with health, authentication, plant, claiming, telemetry, history, and alert examples is available at [`api.http`](api.http).
 
+### Client authentication
+
+The Android and iOS clients support three Firebase Authentication methods:
+
+- Email/Password registration and sign-in. A newly registered password user must
+  verify the email address before the client synchronizes a backend session.
+- Google Sign-In. Android uses Credential Manager and the web client ID generated
+  from `google-services.json`; iOS uses GoogleSignIn with the Firebase client ID
+  from `GoogleService-Info.plist`.
+- Sign in with Apple. iOS uses AuthenticationServices with a per-request SHA-256
+  nonce; Android uses Firebase's `apple.com` OAuth provider. Apple Private Relay
+  and absent email values are supported.
+
+All three methods finish by creating a normal Firebase session. Provider ID/access
+tokens and the Apple raw nonce stay inside their platform authentication bridge.
+Shared code asks Firebase only for its ID Token and sends that token as
+`Authorization: Bearer <token>` to the backend. The backend does not distinguish
+how the Firebase session was obtained: it verifies the ID Token, maps its Firebase
+UID to one stable internal UUID, and auto-provisions that internal user on the
+first valid request when `FIREBASE_AUTO_PROVISION_USERS=true`.
+
+Google and Apple users normally arrive as email-verified and do not enter the
+manual email-verification screen. Accounts are never merged automatically by
+email; `ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL` asks the user to authenticate
+with the previously used provider. Logout ends the Firebase session, clears the
+platform credential state where available, and removes only the current account's
+local cache.
+
 ### Firebase-authenticated request
 
 ```bash
@@ -293,13 +321,19 @@ The shared client obtains the ID Token from Firebase Authentication for every pr
 ### Manual Firebase setup
 
 1. Create or select a Firebase project.
-2. Enable the required sign-in methods in Firebase Authentication.
-3. Create credentials for the server environment when workload identity is unavailable.
-4. Configure Application Default Credentials or `GOOGLE_APPLICATION_CREDENTIALS`.
-5. Set `FIREBASE_PROJECT_ID` to the selected project.
-6. Restart or redeploy the server.
-7. Obtain a test Firebase ID Token outside the backend through a client or Firebase tooling.
-8. Call `GET /api/v1/auth/me` with that token and verify the internal user UUID.
+2. Register the Android package and iOS bundle ID, then materialize the ignored
+   `google-services.json` and `GoogleService-Info.plist` files locally or in CI.
+3. Enable Email/Password, Google and Apple in Firebase Authentication and complete
+   the Android SHA fingerprint, iOS Google URL scheme, Apple Developer capability,
+   service ID, key and Firebase callback configuration.
+4. Create credentials for the server environment when workload identity is unavailable.
+5. Configure Application Default Credentials or `GOOGLE_APPLICATION_CREDENTIALS`.
+6. Set `FIREBASE_PROJECT_ID` to the selected project and restart or redeploy the server.
+7. Sign in with each enabled client method and confirm that `GET /api/v1/auth/me`
+   returns the same internal user on repeated requests for the same Firebase user.
+
+The complete platform, secret-handling, account-deletion and acceptance checklist
+is [`docs/firebase-frontend-checklist.md`](docs/firebase-frontend-checklist.md).
 
 The backend only verifies Firebase ID Tokens. It must not accept an email/password
 to sign users into Firebase; that flow belongs in the client. See

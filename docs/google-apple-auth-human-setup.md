@@ -4,8 +4,8 @@
 
 Этот checklist содержит только действия, требующие доступа к Firebase Console,
 Google Cloud Console, Apple Developer, Xcode signing, CI secrets или реальным
-устройствам. Изменения исходного кода описаны отдельно в
-[`google-apple-auth-agent-plan.md`](google-apple-auth-agent-plan.md).
+устройствам. Реализованная клиентская архитектура и общий Firebase ID Token flow
+описаны в разделе [Client authentication](../README.md#client-authentication).
 
 Итоговая конфигурация должна постоянно поддерживать три способа входа:
 
