@@ -1,7 +1,13 @@
 import FirebaseAuth
+import FirebaseCore
+import GoogleSignIn
 import Shared
+import UIKit
 
 final class AppleFirebaseAuthBridge: NSObject, IosFirebaseAuthBridge {
+    private static let googleSignInCancelledErrorCode = -5
+    private var googleSignInInProgress = false
+
     func addAuthStateListener(listener: @escaping (IosFirebaseUser?) -> Void) -> IosAuthStateSubscription {
         let handle = Auth.auth().addStateDidChangeListener { _, user in
             listener(user.map(Self.sharedUser))
@@ -34,7 +40,14 @@ final class AppleFirebaseAuthBridge: NSObject, IosFirebaseAuthBridge {
     }
 
     func signIn(method: FederatedAuthMethod, completion: @escaping (String?) -> Void) {
-        completion("provider-unavailable")
+        switch method {
+        case .google:
+            signInWithGoogle(completion: completion)
+        case .apple:
+            completion("provider-unavailable")
+        default:
+            completion("provider-unavailable")
+        }
     }
 
     func sendPasswordReset(email: String, completion: @escaping (String?) -> Void) {
@@ -85,6 +98,111 @@ final class AppleFirebaseAuthBridge: NSObject, IosFirebaseAuthBridge {
 
     private static func sharedUser(_ user: User) -> IosFirebaseUser {
         IosFirebaseUser(email: user.email, emailVerified: user.isEmailVerified)
+    }
+
+    private func signInWithGoogle(completion: @escaping (String?) -> Void) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else {
+                completion("provider-unavailable")
+                return
+            }
+            guard !self.googleSignInInProgress else {
+                completion("provider-unavailable")
+                return
+            }
+            guard let clientID = FirebaseApp.app()?.options.clientID,
+                  !clientID.isEmpty,
+                  let presenter = Self.presentingViewController() else {
+                completion("provider-unavailable")
+                return
+            }
+
+            self.googleSignInInProgress = true
+            GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
+            GIDSignIn.sharedInstance.signIn(withPresenting: presenter) { result, error in
+                if let error {
+                    self.finishGoogleSignIn(
+                        errorCode: Self.stableGoogleSignInErrorCode(error),
+                        completion: completion
+                    )
+                    return
+                }
+                guard let user = result?.user,
+                      let idToken = user.idToken?.tokenString,
+                      !idToken.isEmpty,
+                      !user.accessToken.tokenString.isEmpty else {
+                    self.finishGoogleSignIn(errorCode: "invalid-credentials", completion: completion)
+                    return
+                }
+
+                let credential = GoogleAuthProvider.credential(
+                    withIDToken: idToken,
+                    accessToken: user.accessToken.tokenString
+                )
+                Auth.auth().signIn(with: credential) { _, firebaseError in
+                    self.finishGoogleSignIn(
+                        errorCode: Self.stableErrorCode(firebaseError),
+                        completion: completion
+                    )
+                }
+            }
+        }
+    }
+
+    private func finishGoogleSignIn(errorCode: String?, completion: @escaping (String?) -> Void) {
+        googleSignInInProgress = false
+        completion(errorCode)
+    }
+
+    private static func presentingViewController() -> UIViewController? {
+        let windowScene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
+        guard let root = windowScene?.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
+            return nil
+        }
+        return topViewController(from: root)
+    }
+
+    private static func topViewController(from viewController: UIViewController) -> UIViewController {
+        if let presented = viewController.presentedViewController {
+            return topViewController(from: presented)
+        }
+        if let navigation = viewController as? UINavigationController,
+           let visible = navigation.visibleViewController {
+            return topViewController(from: visible)
+        }
+        if let tab = viewController as? UITabBarController,
+           let selected = tab.selectedViewController {
+            return topViewController(from: selected)
+        }
+        return viewController
+    }
+
+    private static func stableGoogleSignInErrorCode(_ error: Error) -> String {
+        let nsError = error as NSError
+        if nsError.domain == kGIDSignInErrorDomain,
+           nsError.code == googleSignInCancelledErrorCode {
+            return "cancelled"
+        }
+        if containsNetworkError(nsError) {
+            return "network"
+        }
+        if nsError.domain == kGIDSignInErrorDomain {
+            return "provider-unavailable"
+        }
+        return "unknown"
+    }
+
+    private static func containsNetworkError(_ error: NSError) -> Bool {
+        if error.domain == NSURLErrorDomain {
+            return true
+        }
+        guard let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError,
+              underlying !== error else {
+            return false
+        }
+        return containsNetworkError(underlying)
     }
 
     private static func stableErrorCode(_ error: Error?) -> String? {
