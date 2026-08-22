@@ -375,16 +375,18 @@ class PersistenceIntegrationTest {
     @Test
     fun `concurrent first Firebase login creates one internal account`() {
         val uid = "concurrent-${UUID.randomUUID()}"
+        val email = "$uid@example.test"
         val service = FirebaseUserIdentityService(JdbcUserIdentityStore(infrastructure.dataSource), true)
         val executor = Executors.newFixedThreadPool(2)
         try {
             val tasks = List(2) {
-                Callable { service.resolve(VerifiedFirebaseToken(uid, null, false, validUntil)) }
+                Callable { service.resolve(VerifiedFirebaseToken(uid, email, true, validUntil)) }
             }
             val users = executor.invokeAll(tasks).map { it.get() }
 
             assertEquals(1, users.map(UserRecord::id).toSet().size)
             assertEquals(1, identityCount(uid))
+            assertEquals(1, userCountByEmail(email))
         } finally {
             executor.shutdownNow()
         }
@@ -573,6 +575,13 @@ class PersistenceIntegrationTest {
     private fun identityCount(uid: String): Int = infrastructure.dataSource.connection.use { connection ->
         connection.prepareStatement("SELECT count(*) FROM user_identities WHERE provider='firebase' AND external_subject=?").use {
             it.setString(1, uid)
+            it.executeQuery().use { row -> row.next(); row.getInt(1) }
+        }
+    }
+
+    private fun userCountByEmail(email: String): Int = infrastructure.dataSource.connection.use { connection ->
+        connection.prepareStatement("SELECT count(*) FROM users WHERE email=?").use {
+            it.setString(1, email)
             it.executeQuery().use { row -> row.next(); row.getInt(1) }
         }
     }

@@ -64,6 +64,38 @@ class FirebaseAuthenticationTest {
     }
 
     @Test
+    fun `password and social Firebase sessions for the same UID resolve the same internal UUID`() = testApplication {
+        val verifier = FakeFirebaseTokenVerifier(
+            mapOf(
+                "password-session-token" to Result.success(
+                    VerifiedFirebaseToken("shared-firebase-uid", "owner@example.test", true, validUntil),
+                ),
+                "social-session-token" to Result.success(
+                    VerifiedFirebaseToken("shared-firebase-uid", null, true, validUntil),
+                ),
+            ),
+        )
+        val store = MemoryIdentityStore()
+        application { firebaseTestApplication(verifier, FirebaseUserIdentityService(store, true)) }
+
+        val passwordSession = client.get("/testing/firebase") {
+            header(HttpHeaders.Authorization, "Bearer password-session-token")
+        }
+        val socialSession = client.get("/testing/firebase") {
+            header(HttpHeaders.Authorization, "Bearer social-session-token")
+        }
+
+        assertEquals(HttpStatusCode.OK, passwordSession.status)
+        assertEquals(HttpStatusCode.OK, socialSession.status)
+        val passwordUserId = passwordSession.bodyAsText().substringBefore('|')
+        val socialUserId = socialSession.bodyAsText().substringBefore('|')
+        assertEquals(passwordUserId, socialUserId)
+        assertEquals(store.users.single().id.toString(), passwordUserId)
+        assertEquals(1, store.users.size)
+        assertEquals(listOf("password-session-token", "social-session-token"), verifier.verifiedTokens)
+    }
+
+    @Test
     fun `missing wrong-scheme and empty credentials return neutral 401 without verification`() = testApplication {
         val verifier = FakeFirebaseTokenVerifier(emptyMap())
         application { firebaseTestApplication(verifier, FirebaseUserIdentityService(MemoryIdentityStore(), true)) }
