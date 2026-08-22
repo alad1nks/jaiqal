@@ -36,9 +36,9 @@ class IosFirebaseAuthProviderTest {
         val bridge = FakeBridge(null)
         val provider = IosFirebaseAuthProvider(bridge)
 
-        provider.signIn(FederatedAuthMethod.APPLE)
+        provider.signIn(FederatedAuthMethod.GOOGLE)
 
-        assertEquals(FederatedAuthMethod.APPLE, bridge.federatedAuthMethod)
+        assertEquals(FederatedAuthMethod.GOOGLE, bridge.federatedAuthMethod)
     }
 
     @Test
@@ -46,6 +46,7 @@ class IosFirebaseAuthProviderTest {
         val mappings = mapOf(
             "cancelled" to AuthErrorCode.CANCELLED,
             "provider-unavailable" to AuthErrorCode.PROVIDER_UNAVAILABLE,
+            "network" to AuthErrorCode.NETWORK,
             "account-exists-with-different-credential" to AuthErrorCode.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL,
             "credential-already-in-use" to AuthErrorCode.CREDENTIAL_ALREADY_IN_USE,
             "invalid-nonce" to AuthErrorCode.INVALID_NONCE,
@@ -53,7 +54,7 @@ class IosFirebaseAuthProviderTest {
 
         mappings.forEach { (bridgeCode, expected) ->
             val provider = IosFirebaseAuthProvider(FakeBridge(null).apply { federatedError = bridgeCode })
-            val failure = assertFailsWith<AuthException> { provider.signIn(FederatedAuthMethod.APPLE) }
+            val failure = assertFailsWith<AuthException> { provider.signIn(FederatedAuthMethod.GOOGLE) }
             assertEquals(expected, failure.code)
         }
     }
