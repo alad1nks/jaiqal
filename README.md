@@ -335,6 +335,13 @@ The shared client obtains the ID Token from Firebase Authentication for every pr
 The complete platform, secret-handling, account-deletion and acceptance checklist
 is [`docs/firebase-frontend-checklist.md`](docs/firebase-frontend-checklist.md).
 
+For CI-only Android configuration, the manual
+[`Firebase Android configuration check`](.github/workflows/firebase-android.yml)
+reads `FIREBASE_ANDROID_CONFIG_JSON` from the `firebase-mobile` GitHub Environment
+and validates it against the Environment variable `FIREBASE_PROJECT_ID` before
+building. Setup instructions and remaining signing/iOS requirements are in the
+checklist. This job does not publish an APK or deploy the backend.
+
 The backend only verifies Firebase ID Tokens. It must not accept an email/password
 to sign users into Firebase; that flow belongs in the client. See
 [`docs/production-deployment.md`](docs/production-deployment.md) for credential,
@@ -436,6 +443,10 @@ an unexpected or modified artifact fails resolution. When intentionally upgradin
 dependencies, regenerate the baseline with
 `./gradlew --write-verification-metadata sha256`, review both coordinates and
 checksums in the diff, and accept it only after the security scans pass.
+
+The buildscript pins `commons-lang3` to the reviewed `3.20.0` baseline because
+the Ktor Gradle plugin declares an open-ended version range. Review this pin
+together with dependency-verification metadata when upgrading build plugins.
 
 CI references third-party Actions by full commit SHA and builds the server from
 digest-pinned Temurin images. Its `supply-chain` job scans the resolved server

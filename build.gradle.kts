@@ -3,6 +3,17 @@ import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.TaskAction
 
+buildscript {
+    dependencies {
+        constraints {
+            classpath("org.apache.commons:commons-lang3") {
+                version { strictly("3.20.0") }
+                because("Ktor's open version range must use the reviewed dependency-verification baseline")
+            }
+        }
+    }
+}
+
 plugins {
     // this is necessary to avoid the plugins to be loaded multiple times
     // in each subproject's classloader
