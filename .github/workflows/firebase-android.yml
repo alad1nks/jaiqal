@@ -1,0 +1,49 @@
+name: Firebase Android configuration check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: firebase-mobile
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 21
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle without caching Firebase build outputs
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        with:
+          cache-disabled: true
+
+      - name: Test configuration validation
+        run: python3 -B scripts/test-firebase-config.py
+
+      - name: Validate and materialize Android client configuration
+        env:
+          FIREBASE_ANDROID_CONFIG_JSON: ${{ secrets.FIREBASE_ANDROID_CONFIG_JSON }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: python3 scripts/materialize-firebase-android.py
+
+      - name: Verify configured Android build
+        run: ./gradlew --no-daemon --no-build-cache --no-configuration-cache :app:androidApp:assembleDebug :app:androidApp:lintDebug
+
+      - name: Remove materialized configuration and build outputs
+        if: always()
+        shell: bash
+        run: |
+          rm -f -- app/androidApp/google-services.json
+          rm -rf -- app/androidApp/build

@@ -39,14 +39,14 @@ Plant history, realtime, device workflows, alert management, settings/localizati
 Authentication uses the official platform SDKs: Firebase Authentication from the Android BOM and `FirebaseAuth` from the Firebase Apple Swift package. No third-party KMP Firebase wrapper is used.
 
 1. In Firebase Console, register the existing Android package `com.alad1nks.jaiqal` and iOS bundle ID `com.alad1nks.jaiqal.Jaiqal`.
-2. Enable the Email/Password provider.
+2. Enable Email/Password, Google, and Apple and complete the provider configuration in the checklist below.
 3. Put the downloaded Android configuration at `app/androidApp/google-services.json`.
 4. Put the downloaded Apple configuration at `app/iosApp/iosApp/GoogleService-Info.plist`.
 5. Use the same Firebase project ID as the backend `FIREBASE_PROJECT_ID`.
 
-The complete owner/CI checklist, including optional Google, Apple, and future APNs setup, is in [`firebase-frontend-checklist.md`](firebase-frontend-checklist.md).
+The complete owner/CI checklist, including Google, Apple, and future APNs setup, is in [`firebase-frontend-checklist.md`](firebase-frontend-checklist.md).
 
-Both configuration files are ignored by Git. If one is absent, that platform still builds and opens the auth UI, but operations report that Firebase is not configured. Google Sign-In and Sign in with Apple are intentionally deferred because no corresponding provider configuration is present.
+Both configuration files are ignored by Git. If one is absent, that platform still builds and opens the auth UI, but operations report that Firebase is not configured. Google Sign-In and Sign in with Apple are implemented on Android and iOS; using them requires the corresponding Firebase, Google, and Apple configuration described in [`google-apple-auth-human-setup.md`](google-apple-auth-human-setup.md).
 
 The downloaded frontend configuration files identify a Firebase application; they are not Firebase Admin service-account credentials. A service-account JSON and every Firebase Admin private key belong only in the server environment and must never be copied into Android/iOS resources or frontend CI artifacts.
 
@@ -261,7 +261,7 @@ Open `app/iosApp/iosApp.xcodeproj` in Xcode to build and run the iOS shell. Both
 ## Known limitations
 
 - A real Firebase project and ignored platform configuration files are required to exercise authentication and Crashlytics end to end.
-- Google Sign-In and Sign in with Apple are not implemented; the current UI supports Email/Password authentication.
+- Email/Password, Google Sign-In, and Sign in with Apple require configured Firebase providers; Google additionally requires Android signing fingerprints and the iOS callback URL scheme, and Apple requires Apple Developer configuration.
 - The backend has no user push-token registration contract, so Firebase Messaging, notification permission, APNs token handling, and notification-tap routing are intentionally absent.
 - Remote plant images are not downloaded; the UI uses an accessible placeholder.
 - Offline writes are intentionally not queued. Mutations require the server, while successful cached reads remain available offline.

@@ -2,6 +2,32 @@
 
 Complete this checklist outside the repository before validating Android/iOS authentication or Crashlytics against a real Firebase project.
 
+## Setup status — 2026-10-22
+
+The Firebase project `jaiqal` (project number `219975452692`) was created on the
+Spark plan with Google Analytics and Gemini disabled during project creation.
+
+| Item | Verified state |
+| --- | --- |
+| Android app | Registered as `com.alad1nks.jaiqal`; app ID `1:219975452692:android:a1144b45daf70abcae3f01`. |
+| iOS app | Registered as `com.alad1nks.jaiqal.Jaiqal`, matching the current empty `TEAM_ID`. Recheck the effective bundle ID before configuring signing. |
+| Authentication | Email/Password and Google enabled; public project name `Jaiqal`. |
+| Android debug signing | SHA-1 and SHA-256 from this workstation's existing debug certificate registered. Release and Play App Signing fingerprints still required. |
+| Authorized domains | Console lists `localhost`, `jaiqal.firebaseapp.com`, and `jaiqal.web.app`. |
+| Apple sign-in | Deferred by the owner because Apple Developer Program membership is unavailable. |
+| Client configuration | Android download validated for `jaiqal`, package and Google Web OAuth client; saved as `FIREBASE_ANDROID_CONFIG_JSON` in GitHub Environment `firebase-mobile`. `FIREBASE_PROJECT_ID=jaiqal` is set there; only branch `main` is allowed. iOS config remains pending. |
+| Backend | Planned Ubuntu VPS at Hetzner; VPS has not been created. Server credentials and deployment are deferred. Local ignored `.env` sets `FIREBASE_PROJECT_ID=jaiqal`. |
+| Acceptance | Real-device authentication, backend session/revocation checks, Crashlytics events/symbols, and the first configured CI run remain outstanding. |
+
+The initial Gradle configuration blocker came from Ktor's open-ended
+`commons-lang3` range selecting unreviewed `3.21.0`. The buildscript now pins the
+already reviewed `3.20.0`. Windows Node.js 24.10.0 and 25.0.0 archives also have
+verification entries, each matched against its official `SHASUMS256.txt`.
+Dependency verification remains strict. Android SDK is present; the local Docker
+daemon is not running, and iOS simulator tests require macOS.
+
+This status is partial setup evidence, not production or end-to-end acceptance.
+
 For the detailed owner/CI sequence, production-provider rollout and physical-device
 acceptance, also follow [`google-apple-auth-human-setup.md`](google-apple-auth-human-setup.md).
 
@@ -30,6 +56,42 @@ acceptance, also follow [`google-apple-auth-human-setup.md`](google-apple-auth-h
 - [ ] Build a configured Release archive and confirm that its dSYM upload phase completes.
 
 ## CI and secrets
+
+### Android configuration check
+
+The manual workflow `.github/workflows/firebase-android.yml` builds and lints the
+Firebase-configured Android debug variant. It runs only on `main`, uses the
+`firebase-mobile` GitHub Environment, disables build caching, publishes no build
+artifacts, and removes the temporary config and Android outputs with `always()`.
+Existing pull-request CI does not receive Firebase secrets.
+
+Before running it, create the Environment with deployment branches restricted to
+`main` and configure:
+
+| Type | Name | Value |
+| --- | --- | --- |
+| Environment variable | `FIREBASE_PROJECT_ID` | `jaiqal` |
+| Environment secret | `FIREBASE_ANDROID_CONFIG_JSON` | Complete updated `google-services.json` contents, plain JSON (not Base64). |
+
+The validator rejects missing/invalid JSON, a different project or Android
+package, missing Google Web OAuth client configuration, and Admin credentials.
+It does not print configuration values. See [GitHub's secrets documentation](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)
+for adding Environment secrets.
+
+This workflow checks compilation, not device sign-in or a production release.
+Its temporary runner debug signing key is not the workstation key registered in
+Firebase. No installable artifact is published. A distribution pipeline still
+needs managed signing and matching Firebase release/Play fingerprints.
+
+iOS configuration remains pending: keep `GoogleService-Info.plist` in the CI file
+secret store when an iOS job is added. A signed archive, callback URL scheme,
+Apple team and dSYM verification require a separate macOS/signing setup. Never
+put Firebase Admin JSON or an Apple private key in the mobile config secret.
+
+The Android secret, project variable and `main` branch restriction are configured
+in [the hosted Environment](https://github.com/alad1nks/jaiqal/settings/environments/24959205393/edit).
+Running the workflow requires the reviewed changes to be merged into `main`;
+the Environment restriction deliberately prevents running it from a PR branch.
 
 - [ ] Store the two platform configuration files in the CI secret/file store according to the repository policy and materialize them only for the relevant build job.
 - [ ] Keep release backend URLs and signing configuration in CI/deployment configuration rather than Kotlin source.

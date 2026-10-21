@@ -4,6 +4,8 @@
 @deviceToken = paste-device-token
 @claimCode = paste-claim-code
 
+# Mobile CI configuration alone does not start a backend or issue an ID Token.
+# Complete server deployment and client sign-in before running protected requests.
 # Protected user endpoints require a Firebase ID Token. Legacy password auth
 # endpoints are disabled and return 410 Gone without issuing tokens.
 # FIREBASE_AUTO_PROVISION_USERS defaults to true because the project has no
